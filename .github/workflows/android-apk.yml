@@ -1,0 +1,65 @@
+name: Android APK
+
+on:
+  push:
+    paths-ignore: ['README.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar www/ (offline, sem CDN)
+        run: npm run build:www
+
+      - name: Criar projeto Android
+        run: npx cap add android
+
+      - name: Ícones do app
+        continue-on-error: true
+        run: npx capacitor-assets generate --android --assetPath resources --iconBackgroundColor '#0f766e' --iconBackgroundColorDark '#0f766e' --splashBackgroundColor '#0f766e' --splashBackgroundColorDark '#0f766e'
+
+      - name: Sincronizar
+        run: npx cap sync android
+
+      - name: Compilar APK (debug)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/VetAnest.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VetAnest-apk
+          path: VetAnest.apk
+
+      - name: Publicar APK como Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-v1.0.${{ github.run_number }}
+          name: VetAnest APK v1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: VetAnest.apk
+          body: |
+            APK de teste (debug) do VetAnest Monitor, gerado a partir do commit ${{ github.sha }} (branch ${{ github.ref_name }}).
+            Baixe o **VetAnest.apk** abaixo no celular Android e permita "instalar apps de fontes desconhecidas" quando for pedido.

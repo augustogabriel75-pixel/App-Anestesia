@@ -9,6 +9,14 @@ Aplicativo web responsivo (SPA/PWA) para **monitoramento anestésico veterinári
 
 Após o primeiro acesso online, o service worker guarda o app e as bibliotecas em cache, e ele passa a funcionar **offline**.
 
+## App Android (APK)
+
+A cada push, o workflow **Android APK** (GitHub Actions) empacota o app com [Capacitor](https://capacitorjs.com) e publica o `VetAnest.apk` na aba **Releases** do repositório. No APK, o Tailwind (CSS compilado) e o jsPDF vão embutidos, então o app funciona **100% offline** desde a primeira abertura. O PDF e o backup são salvos pela tela de compartilhamento do Android (salvar no Drive/Arquivos, WhatsApp, e-mail…).
+
+Para instalar, baixe o `VetAnest.apk` no celular, abra o arquivo e autorize "instalar apps desconhecidos". O APK é de teste (debug). Para publicar na Play Store, gere um build *release* assinado.
+
+Build local (requer Android SDK + JDK 17): `npm ci && npx cap add android && npm run android:apk`.
+
 ## Funcionalidades
 
 | Tela | O que faz |

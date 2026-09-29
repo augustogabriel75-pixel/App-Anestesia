@@ -668,9 +668,22 @@ $('#listaFichas').addEventListener('click', e => {
 });
 
 // Backup / restauração
-$('#btnBackup').onclick = () => {
+// ---------- Arquivos: download no navegador, salvar + compartilhar no app Android (Capacitor) ----------
+const isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const blobToB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+async function nativeShareFile(blob, name) {
+  const { Filesystem, Share } = window.Capacitor.Plugins;
+  const { uri } = await Filesystem.writeFile({ path: name, data: await blobToB64(blob), directory: 'CACHE' });
+  try { await Share.share({ title: name, url: uri, dialogTitle: 'Salvar / enviar ' + name }); }
+  catch (e) { if (!/cancel/i.test(e.message || '')) throw e; }
+}
+async function downloadFile(blob, name) {
+  if (isNative()) return nativeShareFile(blob, name);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+$('#btnBackup').onclick = async () => {
   const blob = new Blob([JSON.stringify({ app: 'vetanest', v: 1, exportedAt: new Date().toISOString(), profile, fichas }, null, 1)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vetanest-backup-${todayISO()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  try { await downloadFile(blob, `vetanest-backup-${todayISO()}.json`); } catch (e) { toast('Erro ao salvar backup: ' + e.message, 'err'); }
 };
 $('#inpRestore').onchange = async e => {
   const file = e.target.files[0]; e.target.value = ''; if (!file) return;
@@ -1210,6 +1223,7 @@ async function exportPDF(mode = 'save') {
   try {
     const doc = buildPDF(f, { grafico: $('#optGrafico').checked });
     const name = pdfFileName(f);
+    if (isNative()) { await nativeShareFile(doc.output('blob'), name); return; }
     if (mode === 'share') {
       const blob = doc.output('blob'), file = new File([blob], name, { type: 'application/pdf' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e.name === 'AbortError') return; } }
@@ -1223,7 +1237,7 @@ $('#btnPDFShare').onclick = () => exportPDF('share');
 // ---------- Inicialização ----------
 if (curId && !cur()) curId = null;
 go(fichas.length ? (LS.get(K.view, 'fichas') === 'perfil' ? 'fichas' : LS.get(K.view, 'fichas')) : (profile.nome ? 'fichas' : 'perfil'));
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol !== 'file:' && !isNative()) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>
