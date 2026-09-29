@@ -1,0 +1,1229 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VetAnest">
+<meta name="description" content="Monitoramento anestésico veterinário com ficha anestésica em PDF.">
+<title>VetAnest Monitor</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  if (window.tailwind) tailwind.config = {
+    theme: { extend: { colors: { brand: { 50:'#f0fdfa',100:'#ccfbf1',200:'#99f6e4',500:'#14b8a6',600:'#0d9488',700:'#0f766e',800:'#115e59',900:'#134e4a' } } } }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+<style type="text/tailwindcss">
+  @layer components {
+    .card { @apply bg-white rounded-2xl shadow-sm border border-slate-200 p-4; }
+    .card-title { @apply text-sm font-bold uppercase tracking-wide text-brand-800 mb-3 flex items-center gap-2; }
+    .lbl { @apply block text-xs font-semibold text-slate-600 mb-1; }
+    .inp { @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base text-slate-900 focus:border-brand-600 focus:ring-2 focus:ring-brand-200 outline-none; }
+    .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold active:scale-[.98] transition select-none disabled:opacity-40; }
+    .btn-primary { @apply btn bg-brand-700 text-white hover:bg-brand-800; }
+    .btn-soft { @apply btn bg-brand-50 text-brand-800 border border-brand-200 hover:bg-brand-100; }
+    .btn-ghost { @apply btn bg-white text-slate-700 border border-slate-300 hover:bg-slate-50; }
+    .btn-danger { @apply btn bg-red-50 text-red-700 border border-red-200 hover:bg-red-100; }
+    .seg { @apply flex flex-wrap gap-2; }
+    .seg > button { @apply flex-1 min-w-[3.25rem] rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-700 active:scale-[.97]; }
+    .seg > button.on { @apply bg-brand-700 text-white border-brand-700; }
+    .chip { @apply rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 active:bg-brand-50 active:scale-[.97]; }
+    .nav-btn { @apply flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-semibold text-slate-500; }
+    .nav-btn.on { @apply text-brand-700; }
+    .tile { @apply rounded-xl bg-slate-50 border border-slate-200 px-3 py-2; }
+  }
+  html, body { background:#f1f5f9; }
+  body { padding-bottom: calc(72px + env(safe-area-inset-bottom)); -webkit-tap-highlight-color: transparent; }
+  input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  input[type=number] { -moz-appearance:textfield; }
+  .view { display:none; } .view.active { display:block; }
+  .due { animation: pulse-due 1s ease-in-out infinite; }
+  @keyframes pulse-due { 0%,100% { background:#fef2f2; } 50% { background:#fecaca; } }
+  .bad { color:#dc2626; font-weight:700; }
+  #sigPad { touch-action:none; }
+</style>
+</head>
+<body class="text-slate-900 antialiased">
+
+<!-- ============ HEADER ============ -->
+<header class="sticky top-0 z-30 bg-brand-800 text-white shadow" style="padding-top:env(safe-area-inset-top)">
+  <div class="max-w-4xl mx-auto flex items-center gap-3 px-4 py-3">
+    <img src="icons/icon.svg" class="w-9 h-9 rounded-lg" alt="">
+    <div class="flex-1 min-w-0">
+      <div id="hdrTitle" class="font-bold leading-tight truncate">VetAnest Monitor</div>
+      <div id="hdrSub" class="text-xs text-brand-100 truncate">Nenhuma ficha aberta</div>
+    </div>
+    <div id="hdrTimer" class="hidden font-mono text-lg font-bold bg-brand-900/60 rounded-lg px-2 py-1"></div>
+    <button id="btnPerfil" class="p-2 rounded-lg hover:bg-brand-700" aria-label="Perfil profissional" title="Perfil profissional">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-4 space-y-4">
+
+<!-- ============ FICHAS ============ -->
+<section id="v-fichas" class="view space-y-4">
+  <div class="grid grid-cols-2 gap-3">
+    <button id="btnNova" class="btn-primary py-4 text-lg col-span-2 sm:col-span-1">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+      Nova ficha anestésica
+    </button>
+    <div class="col-span-2 sm:col-span-1 grid grid-cols-2 gap-3">
+      <button id="btnBackup" class="btn-ghost text-sm">Backup (JSON)</button>
+      <label class="btn-ghost text-sm cursor-pointer">Restaurar<input id="inpRestore" type="file" accept="application/json,.json" class="hidden"></label>
+    </div>
+  </div>
+  <div id="profileWarn" class="hidden card border-amber-300 bg-amber-50 text-amber-900 text-sm">
+    Complete seu <button class="underline font-semibold" data-go="perfil">perfil profissional</button> (nome, CRMV e logotipo) para que apareçam automaticamente no cabeçalho do PDF.
+  </div>
+  <div>
+    <input id="busca" class="inp" type="search" placeholder="Buscar por paciente, tutor ou procedimento…">
+  </div>
+  <div id="listaFichas" class="space-y-3"></div>
+</section>
+
+<!-- ============ PACIENTE ============ -->
+<section id="v-paciente" class="view space-y-4">
+  <div class="needs-ficha space-y-4">
+    <div class="card">
+      <div class="card-title">🏥 Local da anestesia</div>
+      <label class="lbl">Clínica / Hospital (editável por paciente)</label>
+      <input class="inp" data-f="clinica" placeholder="Nome da clínica">
+    </div>
+
+    <div class="card">
+      <div class="card-title">👤 Tutor / Cliente</div>
+      <div class="grid sm:grid-cols-3 gap-3">
+        <div class="sm:col-span-3"><label class="lbl">Nome completo</label><input class="inp" data-f="tutor.nome" autocomplete="off"></div>
+        <div><label class="lbl">Telefone / WhatsApp</label><input class="inp" data-f="tutor.tel" type="tel" inputmode="tel" placeholder="(00) 00000-0000" data-mask="tel"></div>
+        <div><label class="lbl">CPF (opcional)</label><input class="inp" data-f="tutor.cpf" inputmode="numeric" placeholder="000.000.000-00" data-mask="cpf"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🐾 Paciente</div>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div class="sm:col-span-2"><label class="lbl">Nome do paciente</label><input class="inp" data-f="paciente.nome" autocomplete="off"></div>
+        <div class="sm:col-span-2">
+          <label class="lbl">Espécie</label>
+          <div class="seg" data-seg="paciente.especie"><button data-v="Cão">🐕 Cão</button><button data-v="Gato">🐈 Gato</button><button data-v="Equino">🐎 Equino</button><button data-v="Outro">Outro</button></div>
+          <input class="inp mt-2 hidden" id="especieOutro" data-f="paciente.especieOutro" placeholder="Qual espécie?">
+        </div>
+        <div><label class="lbl">Raça</label><input class="inp" data-f="paciente.raca" list="dlRacas"></div>
+        <div><label class="lbl">Idade</label><input class="inp" data-f="paciente.idade" placeholder="ex.: 5 anos / 8 meses"></div>
+        <div>
+          <label class="lbl">Sexo</label>
+          <div class="seg" data-seg="paciente.sexo"><button data-v="Macho">Macho</button><button data-v="Fêmea">Fêmea</button></div>
+          <label class="mt-2 flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" class="w-5 h-5 accent-brand-700" data-f="paciente.castrado"> Castrado(a)</label>
+        </div>
+        <div><label class="lbl">Peso (kg)</label><input class="inp text-xl font-bold" data-f="paciente.peso" type="number" inputmode="decimal" step="0.01" min="0"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🩺 Procedimento</div>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div class="sm:col-span-2"><label class="lbl">Cirurgia / Procedimento realizado</label><input class="inp" data-f="proc.nome" list="dlProc"></div>
+        <div><label class="lbl">Data</label><input class="inp" data-f="proc.data" type="date"></div>
+        <div><label class="lbl">Cirurgião(ã)</label><input class="inp" data-f="proc.cirurgiao"></div>
+        <div class="sm:col-span-2">
+          <label class="lbl">Classificação ASA</label>
+          <div class="flex gap-2 items-stretch">
+            <div class="seg flex-1" data-seg="proc.asa"><button data-v="I">I</button><button data-v="II">II</button><button data-v="III">III</button><button data-v="IV">IV</button><button data-v="V">V</button></div>
+            <button type="button" class="seg-toggle rounded-xl border border-slate-300 px-4 font-bold" data-toggle="proc.emergencia">+E</button>
+          </div>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="lbl">Risco anestésico</label>
+          <div class="seg" data-seg="proc.risco"><button data-v="Baixo">Baixo</button><button data-v="Moderado">Moderado</button><button data-v="Alto">Alto</button><button data-v="Muito alto">Muito alto</button></div>
+        </div>
+        <div><label class="lbl">Jejum sólido (horas)</label><input class="inp" data-f="proc.jejumSolido" type="number" inputmode="decimal" min="0"></div>
+        <div><label class="lbl">Jejum líquido (horas)</label><input class="inp" data-f="proc.jejumLiquido" type="number" inputmode="decimal" min="0"></div>
+        <div class="sm:col-span-2"><label class="lbl">Avaliação pré-anestésica / exames / observações</label><textarea class="inp" rows="3" data-f="proc.obs" placeholder="Exame físico, hemograma, bioquímicos, comorbidades…"></textarea></div>
+      </div>
+    </div>
+    <button class="btn-primary w-full py-4" data-go="farmacos">Próximo: Fármacos →</button>
+  </div>
+</section>
+
+<!-- ============ FÁRMACOS ============ -->
+<section id="v-farmacos" class="view space-y-4">
+  <div class="needs-ficha space-y-4">
+    <div class="card">
+      <div class="flex items-center justify-between gap-2">
+        <div class="card-title mb-0">💉 Protocolo anestésico</div>
+        <div class="text-sm text-slate-600">Peso: <b id="pesoFarm">—</b></div>
+      </div>
+      <p class="text-xs text-slate-500 mt-1">Dose total e volume são calculados pelo peso e concentração. <b>Sempre confira os cálculos.</b></p>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2" id="faseBtns"></div>
+    <div id="listaFarm" class="space-y-4"></div>
+
+    <div class="card">
+      <div class="card-title">💧 Fluidoterapia</div>
+      <div class="grid sm:grid-cols-3 gap-3">
+        <div><label class="lbl">Fluido</label><input class="inp" data-f="fluido.tipo" list="dlFluidos" placeholder="Ringer lactato"></div>
+        <div><label class="lbl">Taxa (mL/kg/h)</label><input class="inp" data-f="fluido.taxa" type="number" inputmode="decimal" min="0" step="0.5"></div>
+        <div><label class="lbl">Taxa (mL/h)</label><div id="fluidoMlH" class="inp bg-slate-50 font-bold">—</div></div>
+      </div>
+    </div>
+    <button class="btn-primary w-full py-4" data-go="monitor">Próximo: Monitoração →</button>
+  </div>
+</section>
+
+<!-- ============ MONITOR ============ -->
+<section id="v-monitor" class="view space-y-4">
+  <div class="needs-ficha space-y-4">
+    <div class="card" id="monCard">
+      <div class="flex flex-wrap items-center gap-4">
+        <div class="flex-1 min-w-[10rem]">
+          <div class="text-xs font-semibold text-slate-500 uppercase">Tempo de anestesia</div>
+          <div id="monElapsed" class="font-mono text-4xl font-bold text-brand-800">00:00:00</div>
+          <div id="monStart" class="text-xs text-slate-500">Anestesia não iniciada</div>
+        </div>
+        <div class="flex gap-2">
+          <button id="btnIniciar" class="btn-primary px-5">▶ Iniciar anestesia</button>
+          <button id="btnEncerrar" class="btn-danger px-5 hidden">■ Encerrar</button>
+        </div>
+      </div>
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <span class="text-sm font-semibold text-slate-600">Intervalo:</span>
+        <div class="seg flex-none" data-seg="monitor.intervalo" data-num="1"><button data-v="5">5 min</button><button data-v="10">10 min</button><button data-v="15">15 min</button></div>
+        <div id="monNext" class="ml-auto text-sm font-semibold rounded-lg px-3 py-2 bg-slate-100 text-slate-700">—</div>
+      </div>
+    </div>
+
+    <button id="btnRegistrar" class="btn-primary w-full py-5 text-xl shadow-lg">
+      <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+      Registrar parâmetros
+    </button>
+
+    <div class="card">
+      <div class="card-title">⚡ Eventos rápidos <span class="font-normal normal-case text-slate-400 text-xs">(registra com horário atual)</span></div>
+      <div class="flex flex-wrap gap-2" id="eventChips"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 Últimos valores</div>
+      <div id="lastTiles" class="grid grid-cols-3 sm:grid-cols-6 gap-2"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📈 Tendência</div>
+      <canvas id="trend" class="w-full h-48"></canvas>
+      <p id="trendEmpty" class="text-sm text-slate-500">Registre ao menos 2 aferições para ver o gráfico.</p>
+    </div>
+
+    <div class="card p-0 overflow-hidden">
+      <div class="card-title px-4 pt-4">🗒️ Registros <span id="regCount" class="text-slate-400 font-normal"></span></div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 text-xs uppercase">
+            <tr><th class="px-2 py-2 text-left">Hora</th><th class="px-2">FC</th><th class="px-2">FR</th><th class="px-2">PAS/PAD (PAM)</th><th class="px-2">SpO₂</th><th class="px-2">EtCO₂</th><th class="px-2">Temp</th><th class="px-2">Glic</th><th class="px-2">Plano</th><th class="px-2">Vap</th><th class="px-2">Vent.</th><th class="px-2 text-left">Obs.</th></tr>
+          </thead>
+          <tbody id="regBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+      <p class="text-xs text-slate-400 px-4 py-2">Toque em um registro para editar.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESUMO / PDF ============ -->
+<section id="v-resumo" class="view space-y-4">
+  <div class="needs-ficha space-y-4">
+    <div class="card">
+      <div class="card-title">⏱️ Horários</div>
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3" id="horarios"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">💧 Fluidoterapia – volume total</div>
+      <div class="grid sm:grid-cols-3 gap-3 items-end">
+        <div><label class="lbl">Volume total administrado (mL)</label><input class="inp text-xl font-bold" data-f="resumo.fluidoTotal" type="number" inputmode="decimal" min="0"></div>
+        <button id="btnCalcFluido" class="btn-soft">Estimar pela taxa × duração</button>
+        <div id="fluidoInfo" class="text-xs text-slate-500"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚠️ Intercorrências</div>
+      <label class="lbl">Trans-anestésicas</label>
+      <textarea class="inp" rows="3" data-f="resumo.intercorrenciasTrans" placeholder="Hipotensão, bradicardia, arritmias, resgates…"></textarea>
+      <button id="btnPuxarEventos" class="btn-ghost text-sm mt-2">Importar eventos registrados na monitoração</button>
+      <label class="lbl mt-3">Pós-operatório imediato</label>
+      <textarea class="inp" rows="3" data-f="resumo.intercorrenciasPos" placeholder="Recuperação, dor, hipotermia, agitação, vômito…"></textarea>
+      <label class="lbl mt-3">Qualidade da recuperação</label>
+      <div class="seg" data-seg="resumo.recuperacao"><button data-v="Excelente">Excelente</button><button data-v="Boa">Boa</button><button data-v="Regular">Regular</button><button data-v="Ruim">Ruim</button></div>
+      <label class="lbl mt-3">Observações finais / prescrição pós-anestésica</label>
+      <textarea class="inp" rows="3" data-f="resumo.obs"></textarea>
+    </div>
+
+    <div class="card space-y-3">
+      <div class="card-title">📄 Ficha anestésica (PDF)</div>
+      <label class="flex items-center gap-3 text-sm"><input type="checkbox" class="w-5 h-5 accent-brand-700" id="optGrafico" checked> Incluir gráfico de tendência</label>
+      <label class="flex items-center gap-3 text-sm"><input type="checkbox" class="w-5 h-5 accent-brand-700" data-f="finalizada"> Marcar ficha como finalizada</label>
+      <div class="grid sm:grid-cols-3 gap-3">
+        <button id="btnPDF" class="btn-primary py-4 text-lg sm:col-span-2">📄 Exportar Ficha Anestésica (PDF)</button>
+        <button id="btnPDFShare" class="btn-soft py-4">Visualizar / Compartilhar</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PERFIL ============ -->
+<section id="v-perfil" class="view space-y-4">
+  <div class="card">
+    <div class="card-title">👨‍⚕️ Perfil profissional</div>
+    <p class="text-xs text-slate-500 mb-3">Preenchido uma única vez e salvo neste dispositivo. Usado automaticamente em todas as novas fichas.</p>
+    <div class="grid sm:grid-cols-3 gap-3">
+      <div class="sm:col-span-3"><label class="lbl">Nome do(a) anestesista</label><input class="inp" data-p="nome" placeholder="M.V. Nome Sobrenome"></div>
+      <div class="sm:col-span-2"><label class="lbl">CRMV (número)</label><input class="inp" data-p="crmv" inputmode="numeric"></div>
+      <div><label class="lbl">UF</label><select class="inp" data-p="uf" id="selUF"></select></div>
+      <div class="sm:col-span-3"><label class="lbl">Clínica / Hospital padrão</label><input class="inp" data-p="clinica"></div>
+      <div class="sm:col-span-3"><label class="lbl">Contato da clínica (opcional – rodapé do cabeçalho)</label><input class="inp" data-p="contato" placeholder="Endereço, telefone…"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">🖼️ Logotipo (cabeçalho do PDF)</div>
+    <div class="flex items-center gap-4 flex-wrap">
+      <div class="w-40 h-24 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden"><img id="logoPrev" class="max-w-full max-h-full hidden" alt="Logotipo"><span id="logoNone" class="text-xs text-slate-400">sem logotipo</span></div>
+      <div class="flex gap-2 flex-wrap">
+        <label class="btn-soft cursor-pointer">Enviar imagem<input type="file" accept="image/*" class="hidden" id="inpLogo"></label>
+        <button class="btn-ghost" id="rmLogo">Remover</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">✍️ Assinatura digital</div>
+    <div class="flex items-center gap-4 flex-wrap">
+      <div class="w-56 h-24 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center bg-white overflow-hidden"><img id="sigPrev" class="max-w-full max-h-full hidden" alt="Assinatura"><span id="sigNone" class="text-xs text-slate-400">sem assinatura</span></div>
+      <div class="flex gap-2 flex-wrap">
+        <button class="btn-soft" id="btnDesenhar">Desenhar</button>
+        <label class="btn-soft cursor-pointer">Enviar imagem<input type="file" accept="image/*" class="hidden" id="inpSig"></label>
+        <button class="btn-ghost" id="rmSig">Remover</button>
+      </div>
+    </div>
+  </div>
+  <div class="card text-xs text-slate-500 space-y-1">
+    <p><b>Armazenamento:</b> todos os dados ficam apenas neste navegador (localStorage). Faça backups periódicos em “Fichas → Backup”.</p>
+    <p id="storageInfo"></p>
+  </div>
+  <button class="btn-primary w-full py-4" data-go="fichas">Concluir</button>
+</section>
+
+<div id="noFicha" class="hidden card text-center space-y-3 py-10">
+  <div class="text-5xl">📋</div>
+  <p class="text-slate-600">Nenhuma ficha aberta.</p>
+  <button class="btn-primary" data-action="nova">Criar nova ficha</button>
+  <button class="btn-ghost" data-go="fichas">Ver fichas salvas</button>
+</div>
+</main>
+
+<!-- ============ BOTTOM NAV ============ -->
+<nav class="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 shadow-[0_-2px_8px_rgba(0,0,0,.04)]" style="padding-bottom:env(safe-area-inset-bottom)">
+  <div class="max-w-4xl mx-auto flex">
+    <button class="nav-btn" data-go="fichas"><span class="text-xl">📋</span>Fichas</button>
+    <button class="nav-btn" data-go="paciente"><span class="text-xl">🐾</span>Paciente</button>
+    <button class="nav-btn" data-go="farmacos"><span class="text-xl">💉</span>Fármacos</button>
+    <button class="nav-btn" data-go="monitor"><span class="text-xl">💓</span>Monitor</button>
+    <button class="nav-btn" data-go="resumo"><span class="text-xl">📄</span>Resumo/PDF</button>
+  </div>
+</nav>
+
+<!-- ============ MODAL REGISTRO ============ -->
+<div id="regModal" class="hidden fixed inset-0 z-40 bg-slate-900/50 flex items-end sm:items-center justify-center">
+  <div class="bg-slate-50 w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl max-h-[95vh] flex flex-col">
+    <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white rounded-t-2xl">
+      <div class="flex-1 font-bold text-lg" id="regTitle">Novo registro</div>
+      <input type="time" id="regHora" class="inp w-36 py-2 px-2 font-mono font-bold">
+      <button class="btn-ghost py-2 px-3 text-sm" id="regAgora">Agora</button>
+      <button class="p-2 text-slate-500 text-2xl leading-none" data-close aria-label="Fechar">×</button>
+    </div>
+    <div class="overflow-y-auto p-4 space-y-4" id="regBodyForm">
+      <p id="regHint" class="text-xs text-slate-500"></p>
+      <div><div class="lbl">Cardiovascular</div><div class="grid grid-cols-2 sm:grid-cols-4 gap-2" data-grp="cv"></div></div>
+      <div><div class="lbl">Respiratório</div><div class="grid grid-cols-2 sm:grid-cols-3 gap-2" data-grp="resp"></div></div>
+      <div><div class="lbl">Temperatura / Metabólico</div><div class="grid grid-cols-2 gap-2" data-grp="met"></div></div>
+      <div class="bg-white rounded-xl border border-slate-200 p-3 space-y-3">
+        <div class="lbl">Plano anestésico (Guedel) / Reflexos</div>
+        <div class="seg" data-rseg="plano"><button data-v="I">I</button><button data-v="II">II</button><button data-v="III-1">III-1</button><button data-v="III-2">III-2</button><button data-v="III-3">III-3</button><button data-v="IV">IV</button></div>
+        <div class="grid sm:grid-cols-3 gap-3">
+          <div><div class="text-xs text-slate-500 mb-1">Palpebral</div><div class="seg" data-rseg="palpebral"><button data-v="+">Pres.</button><button data-v="±">Dim.</button><button data-v="-">Aus.</button></div></div>
+          <div><div class="text-xs text-slate-500 mb-1">Corneano</div><div class="seg" data-rseg="corneano"><button data-v="+">Pres.</button><button data-v="-">Aus.</button></div></div>
+          <div><div class="text-xs text-slate-500 mb-1">Globo ocular</div><div class="seg" data-rseg="globo"><button data-v="C">Central</button><button data-v="R">Rotac.</button></div></div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-3 space-y-3">
+        <div class="lbl">Manutenção / Vaporizador</div>
+        <div class="seg" data-rseg="agente"><button data-v="Iso">Isoflurano</button><button data-v="Sevo">Sevoflurano</button><button data-v="TIVA">TIVA</button></div>
+        <div class="grid grid-cols-2 gap-2" data-grp="vap"></div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-3 space-y-3">
+        <div class="lbl">Ventilação</div>
+        <div class="seg" data-rseg="modo"><button data-v="Espont.">Espontânea</button><button data-v="Manual">Manual</button><button data-v="VCV">VCV</button><button data-v="PCV">PCV</button><button data-v="SIMV">SIMV</button></div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2" data-grp="vent"></div>
+      </div>
+      <div>
+        <div class="lbl">Observações / Intercorrências / Bolus / Resgate</div>
+        <div class="flex flex-wrap gap-2 mb-2" id="obsChips"></div>
+        <textarea id="regObs" class="inp" rows="2" placeholder="ex.: Bolus fentanil 2 mcg/kg IV"></textarea>
+      </div>
+    </div>
+    <div class="flex gap-2 p-3 border-t border-slate-200 bg-white" style="padding-bottom:calc(.75rem + env(safe-area-inset-bottom))">
+      <button class="btn-danger hidden" id="regDel">Excluir</button>
+      <button class="btn-ghost" id="regClear">Limpar</button>
+      <button class="btn-primary flex-1 py-4 text-lg" id="regSave">Salvar registro</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL ASSINATURA ============ -->
+<div id="sigModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-xl p-4 space-y-3">
+    <div class="font-bold">Desenhe sua assinatura</div>
+    <canvas id="sigPad" class="w-full h-48 border-2 border-slate-300 rounded-xl bg-white"></canvas>
+    <div class="flex gap-2">
+      <button class="btn-ghost" id="sigLimpar">Limpar</button>
+      <button class="btn-ghost" data-close>Cancelar</button>
+      <button class="btn-primary flex-1" id="sigSalvar">Salvar assinatura</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TOAST / BANNER ============ -->
+<div id="dueBanner" class="hidden fixed top-20 inset-x-4 z-40 max-w-md mx-auto rounded-2xl bg-red-600 text-white shadow-xl p-4 flex items-center gap-3">
+  <span class="text-3xl">⏰</span>
+  <div class="flex-1"><div class="font-bold">Hora de registrar parâmetros</div><div class="text-sm text-red-100" id="dueText"></div></div>
+  <button class="btn bg-white text-red-700 px-3 py-2" id="dueGo">Registrar</button>
+</div>
+<div id="toast" class="hidden fixed bottom-24 inset-x-4 z-50 max-w-md mx-auto rounded-xl px-4 py-3 text-white text-sm font-medium shadow-lg text-center"></div>
+
+<datalist id="dlRacas"><option>SRD</option><option>Labrador Retriever</option><option>Golden Retriever</option><option>Shih Tzu</option><option>Yorkshire Terrier</option><option>Poodle</option><option>Lhasa Apso</option><option>Buldogue Francês</option><option>Pinscher</option><option>Spitz Alemão</option><option>Pastor Alemão</option><option>Border Collie</option><option>Dachshund</option><option>Pug</option><option>Rottweiler</option><option>Persa</option><option>Siamês</option><option>Maine Coon</option><option>Quarto de Milha</option><option>Mangalarga Marchador</option><option>Puro Sangue Inglês</option><option>Crioulo</option></datalist>
+<datalist id="dlProc"><option>Ovariohisterectomia eletiva</option><option>Orquiectomia</option><option>Profilaxia dentária / Tratamento periodontal</option><option>Mastectomia</option><option>Nodulectomia</option><option>Enterotomia</option><option>Cistotomia</option><option>Osteossíntese</option><option>Colocefalectomia</option><option>TPLO</option><option>Esplenectomia</option><option>Cesariana</option><option>Laparotomia exploratória</option><option>Correção de hérnia</option><option>Enucleação</option><option>Tomografia computadorizada</option><option>Ressonância magnética</option><option>Laparotomia (cólica equina)</option></datalist>
+<datalist id="dlFluidos"><option>Ringer lactato</option><option>NaCl 0,9%</option><option>Ringer simples</option><option>Plasma-Lyte</option><option>Glicose 5%</option><option>NaCl 0,9% + Glicose 2,5%</option><option>Coloide</option></datalist>
+<datalist id="dlFarmacos"></datalist>
+
+<script>
+'use strict';
+/* =====================================================================
+   VetAnest Monitor – monitoramento anestésico veterinário (SPA/PWA)
+   Dados 100% locais (localStorage). PDF via jsPDF + AutoTable.
+   ===================================================================== */
+
+// ---------- Utilidades ----------
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const pad2 = n => String(n).padStart(2, '0');
+const num = v => { if (v === '' || v == null) return null; const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+const fmt = (v, d) => { const n = num(v); if (n == null) return ''; return (d != null ? n.toFixed(d) : String(+n.toFixed(3))).replace('.', ','); };
+const hhmm = d => pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); };
+const dataBR = iso => iso ? iso.split('-').reverse().join('/') : '';
+const durStr = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s % 3600 / 60)) + ':' + pad2(s % 60); };
+const getPath = (o, p) => p.split('.').reduce((a, k) => a == null ? a : a[k], o);
+const setPath = (o, p, v) => { const ks = p.split('.'); const last = ks.pop(); let t = o; for (const k of ks) { if (typeof t[k] !== 'object' || t[k] == null) t[k] = {}; t = t[k]; } t[last] = v; };
+
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { toast('Não foi possível salvar: armazenamento cheio?', 'err'); return false; } },
+};
+const K = { profile: 'vetanest.profile', fichas: 'vetanest.fichas', cur: 'vetanest.current', view: 'vetanest.view' };
+
+let toastT;
+function toast(msg, type = 'ok') {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = el.className.replace(/bg-\S+/g, '') + ' ' + (type === 'err' ? 'bg-red-600' : 'bg-slate-800');
+  el.classList.remove('hidden');
+  clearTimeout(toastT); toastT = setTimeout(() => el.classList.add('hidden'), 2600);
+}
+
+// ---------- Dados de referência ----------
+const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+const FASES = [
+  { k: 'MPA', l: 'MPA', ic: '💊' },
+  { k: 'Indução', l: 'Indução', ic: '⚡' },
+  { k: 'Manutenção', l: 'Manutenção', ic: '🌬️' },
+  { k: 'Analgesia/Bloqueio', l: 'Analgesia / Bloqueio', ic: '🎯' },
+  { k: 'Outros', l: 'Outros / Resgate', ic: '➕' },
+];
+const UNIDADES = ['mg/kg', 'mcg/kg', 'mL/kg', 'mcg/kg/min', 'mcg/kg/h', 'mg/kg/h', '%', 'mg', 'mL', 'UI/kg'];
+const VIAS = ['IV', 'IM', 'SC', 'VO', 'Inalatória', 'Epidural', 'Intratecal', 'Perineural', 'Local', 'Intranasal', 'Transmucosa'];
+// Concentrações comerciais usuais (mg/mL) – sugestão; o usuário deve conferir.
+const CONC = { 'Acepromazina': 2, 'Dexmedetomidina': 0.5, 'Medetomidina': 1, 'Xilazina': 20, 'Detomidina': 10, 'Midazolam': 5, 'Diazepam': 5,
+  'Metadona': 10, 'Morfina': 10, 'Fentanil': 0.05, 'Remifentanil': 0.05, 'Butorfanol': 10, 'Tramadol': 50, 'Meperidina': 50, 'Nalbufina': 10,
+  'Cetamina': 100, 'Escetamina': 50, 'Propofol': 10, 'Alfaxalona': 10, 'Etomidato': 2, 'Tiopental': 25, 'Lidocaína': 20, 'Bupivacaína': 5,
+  'Ropivacaína': 7.5, 'Atropina': 0.5, 'Glicopirrolato': 0.2, 'Efedrina': 50, 'Dobutamina': 12.5, 'Norepinefrina': 1, 'Dopamina': 5,
+  'Dipirona': 500, 'Meloxicam': 2, 'Cetoprofeno': 10, 'Ondansetrona': 2, 'Maropitant': 10, 'Cefazolina': 100, 'Cefalotina': 100,
+  'Ampicilina': 100, 'Dexametasona': 2, 'Furosemida': 10, 'Naloxona': 0.4, 'Atipamezol': 5, 'Flumazenil': 0.1, 'Guaifenesina': 50,
+  'Isoflurano': null, 'Sevoflurano': null };
+const EVENTOS = ['Intubação', 'Início da cirurgia', 'Incisão', 'Fim da cirurgia', 'Extubação', 'Bolus', 'Resgate analgésico', 'Hipotensão', 'Bradicardia', 'Taquicardia', 'Arritmia', 'Apneia', 'Hipotermia', 'Hipercapnia', 'Dessaturação', 'Vômito/Regurgitação'];
+const OBS_CHIPS = ['Bolus fentanil', 'Bolus cetamina', 'Bolus propofol', 'Atropina IV', 'Efedrina IV', 'Prova de carga', '↑ Vaporizador', '↓ Vaporizador', 'Aquecimento ativo', 'Estímulo cirúrgico'];
+
+// Faixas de referência aproximadas (paciente anestesiado) – apenas para destaque visual.
+const REF = {
+  'Cão':    { fc: [60, 160], fr: [6, 30], pas: [90, 160], pad: [40, 100], pam: [60, 120], temp: [36.5, 39.5] },
+  'Gato':   { fc: [100, 220], fr: [8, 35], pas: [90, 160], pad: [40, 100], pam: [60, 120], temp: [36.5, 39.5] },
+  'Equino': { fc: [25, 60], fr: [4, 20], pas: [90, 160], pad: [45, 100], pam: [70, 120], temp: [36.0, 38.5] },
+  _all:     { spo2: [95, 100], etco2: [35, 45], glic: [60, 200] },
+};
+const BASES = { 'Cão': { fc: 100, fr: 12 }, 'Gato': { fc: 160, fr: 16 }, 'Equino': { fc: 40, fr: 8 } };
+
+const FIELDS = [
+  { k: 'fc',    l: 'FC',        u: 'bpm',   step: 5,   base: 100, grp: 'cv' },
+  { k: 'pas',   l: 'PAS',       u: 'mmHg',  step: 5,   base: 110, grp: 'cv' },
+  { k: 'pad',   l: 'PAD',       u: 'mmHg',  step: 5,   base: 60,  grp: 'cv' },
+  { k: 'pam',   l: 'PAM',       u: 'mmHg',  step: 5,   base: 80,  grp: 'cv', hint: 'auto' },
+  { k: 'fr',    l: 'FR',        u: 'mpm',   step: 1,   base: 12,  grp: 'resp' },
+  { k: 'spo2',  l: 'SpO₂',      u: '%',     step: 1,   base: 98,  grp: 'resp', max: 100 },
+  { k: 'etco2', l: 'EtCO₂',     u: 'mmHg',  step: 1,   base: 40,  grp: 'resp' },
+  { k: 'temp',  l: 'Temp',      u: '°C',    step: 0.1, base: 37.5, grp: 'met' },
+  { k: 'glic',  l: 'Glicemia',  u: 'mg/dL', step: 5,   base: 100, grp: 'met' },
+  { k: 'vap',   l: 'Vaporizador', u: '% vol', step: 0.1, base: 1.5, grp: 'vap' },
+  { k: 'fio2',  l: 'FiO₂',      u: '%',     step: 5,   base: 100, grp: 'vap', max: 100 },
+  { k: 'vc',    l: 'VC',        u: 'mL',    step: 10,  base: 100, grp: 'vent' },
+  { k: 'peep',  l: 'PEEP',      u: 'cmH₂O', step: 1,   base: 5,   grp: 'vent' },
+  { k: 'pip',   l: 'P. pico',   u: 'cmH₂O', step: 1,   base: 12,  grp: 'vent' },
+];
+const RSEGS = ['plano', 'palpebral', 'corneano', 'globo', 'agente', 'modo'];
+
+// ---------- Estado ----------
+let profile = LS.get(K.profile, {});
+let fichas = LS.get(K.fichas, []);
+let curId = LS.get(K.cur, null);
+let view = 'fichas';
+const cur = () => fichas.find(f => f.id === curId) || null;
+
+let saveT;
+function save(immediate) {
+  const f = cur(); if (f) f.updatedAt = Date.now();
+  clearTimeout(saveT);
+  const run = () => { LS.set(K.fichas, fichas); LS.set(K.cur, curId); };
+  immediate ? run() : (saveT = setTimeout(run, 250));
+}
+window.addEventListener('pagehide', () => save(true));
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(true); });
+
+function novaFicha() {
+  const f = {
+    id: uid(), createdAt: Date.now(), updatedAt: Date.now(), finalizada: false,
+    clinica: profile.clinica || '',
+    tutor: { nome: '', tel: '', cpf: '' },
+    paciente: { nome: '', especie: 'Cão', especieOutro: '', raca: '', idade: '', sexo: '', castrado: false, peso: '' },
+    proc: { nome: '', data: todayISO(), cirurgiao: '', asa: '', emergencia: false, risco: '', jejumSolido: '', jejumLiquido: '', obs: '' },
+    farmacos: [],
+    fluido: { tipo: 'Ringer lactato', taxa: '5' },
+    monitor: { intervalo: 5, inicio: null, fim: null },
+    registros: [],
+    resumo: { inicioAnest: '', inicioCir: '', fimCir: '', fimAnest: '', extubacao: '', fluidoTotal: '', intercorrenciasTrans: '', intercorrenciasPos: '', recuperacao: '', obs: '' },
+  };
+  fichas.unshift(f); curId = f.id; save(true);
+  go('paciente'); toast('Nova ficha criada');
+}
+
+// ---------- Navegação ----------
+function go(v) {
+  view = v; LS.set(K.view, v);
+  $$('.view').forEach(s => s.classList.toggle('active', s.id === 'v-' + v));
+  $$('.nav-btn').forEach(b => b.classList.toggle('on', b.dataset.go === v));
+  const needs = ['paciente', 'farmacos', 'monitor', 'resumo'].includes(v);
+  const noF = needs && !cur();
+  $('#noFicha').classList.toggle('hidden', !noF);
+  $$('.needs-ficha').forEach(el => el.classList.toggle('hidden', noF));
+  render();
+  window.scrollTo({ top: 0 });
+}
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-go]'); if (g) { go(g.dataset.go); return; }
+  const a = e.target.closest('[data-action="nova"]'); if (a) novaFicha();
+});
+$('#btnPerfil').onclick = () => go('perfil');
+$('#btnNova').onclick = novaFicha;
+
+// ---------- Binding de formulário ----------
+function mask(type, v) {
+  const d = v.replace(/\D/g, '');
+  if (type === 'cpf') return d.slice(0, 11).replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  if (type === 'tel') { const x = d.slice(0, 11); if (x.length <= 2) return x.length ? '(' + x : ''; if (x.length <= 6) return `(${x.slice(0,2)}) ${x.slice(2)}`; if (x.length <= 10) return `(${x.slice(0,2)}) ${x.slice(2,6)}-${x.slice(6)}`; return `(${x.slice(0,2)}) ${x.slice(2,7)}-${x.slice(7)}`; }
+  return v;
+}
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.f) {
+    const f = cur(); if (!f) return;
+    if (el.dataset.mask) { const m = mask(el.dataset.mask, el.value); if (m !== el.value) el.value = m; }
+    setPath(f, el.dataset.f, el.type === 'checkbox' ? el.checked : el.value);
+    save(); onFieldChange(el.dataset.f);
+  } else if (el.dataset.p) {
+    profile[el.dataset.p] = el.value; LS.set(K.profile, profile);
+  }
+});
+document.addEventListener('change', e => { if (e.target.dataset.p) { profile[e.target.dataset.p] = e.target.value; LS.set(K.profile, profile); } });
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-seg] > button'); if (b) {
+    const seg = b.parentElement, f = cur(); if (!f) return;
+    const path = seg.dataset.seg; let v = seg.dataset.num ? +b.dataset.v : b.dataset.v;
+    if (getPath(f, path) === v && !seg.dataset.num) v = '';            // toque novamente = desmarca
+    setPath(f, path, v); save(); paintSeg(seg, v); onFieldChange(path);
+    return;
+  }
+  const t = e.target.closest('[data-toggle]'); if (t) {
+    const f = cur(); if (!f) return;
+    const v = !getPath(f, t.dataset.toggle); setPath(f, t.dataset.toggle, v); save(); paintToggle(t, v);
+  }
+});
+const paintSeg = (seg, v) => $$('button', seg).forEach(b => b.classList.toggle('on', String(b.dataset.v) === String(v)));
+const paintToggle = (t, v) => { t.classList.toggle('bg-red-600', !!v); t.classList.toggle('text-white', !!v); t.classList.toggle('border-red-600', !!v); };
+
+function fillForms() {
+  const f = cur();
+  $$('[data-f]').forEach(el => {
+    if (!f) { el.value = ''; return; }
+    const v = getPath(f, el.dataset.f);
+    if (el.type === 'checkbox') el.checked = !!v; else if (document.activeElement !== el) el.value = v ?? '';
+  });
+  $$('[data-seg]').forEach(s => paintSeg(s, f ? getPath(f, s.dataset.seg) : ''));
+  $$('[data-toggle]').forEach(t => paintToggle(t, f && getPath(f, t.dataset.toggle)));
+  $$('[data-p]').forEach(el => { if (document.activeElement !== el) el.value = profile[el.dataset.p] ?? ''; });
+}
+
+function onFieldChange(path) {
+  if (path === 'paciente.especie') $('#especieOutro').classList.toggle('hidden', cur().paciente.especie !== 'Outro');
+  if (path.startsWith('paciente.') || path.startsWith('proc.')) renderHeader();
+  if (path === 'paciente.peso' || path.startsWith('fluido.')) { renderFluidoRate(); if (view === 'farmacos') renderFarmacos(); }
+  if (path === 'monitor.intervalo') { alertedFor = null; tick(); }
+}
+
+// ---------- Renderização geral ----------
+function render() {
+  fillForms(); renderHeader();
+  if (view === 'fichas') renderFichas();
+  if (view === 'paciente') { const f = cur(); if (f) $('#especieOutro').classList.toggle('hidden', f.paciente.especie !== 'Outro'); }
+  if (view === 'farmacos') { renderFarmacos(); renderFluidoRate(); }
+  if (view === 'monitor') renderMonitor();
+  if (view === 'resumo') renderResumo();
+  if (view === 'perfil') renderPerfil();
+}
+
+function especieTxt(p) { return p.especie === 'Outro' ? (p.especieOutro || 'Outro') : (p.especie || ''); }
+function renderHeader() {
+  const f = cur();
+  if (!f) { $('#hdrTitle').textContent = 'VetAnest Monitor'; $('#hdrSub').textContent = 'Nenhuma ficha aberta'; return; }
+  const p = f.paciente;
+  $('#hdrTitle').textContent = (p.nome || 'Paciente sem nome') + (p.peso ? ` · ${fmt(p.peso)} kg` : '');
+  $('#hdrSub').textContent = [especieTxt(p), p.raca, f.proc.nome].filter(Boolean).join(' · ') || 'Preencha os dados do paciente';
+}
+
+// ---------- Lista de fichas ----------
+$('#busca').addEventListener('input', renderFichas);
+function renderFichas() {
+  $('#profileWarn').classList.toggle('hidden', !!(profile.nome && profile.crmv));
+  const q = $('#busca').value.trim().toLowerCase();
+  const list = fichas.filter(f => !q || [f.paciente.nome, f.tutor.nome, f.proc.nome, f.clinica].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  if (!list.length) { $('#listaFichas').innerHTML = `<div class="card text-center text-slate-500 py-10">${fichas.length ? 'Nenhuma ficha encontrada.' : 'Nenhuma ficha ainda. Toque em <b>Nova ficha anestésica</b> para começar.'}</div>`; return; }
+  $('#listaFichas').innerHTML = list.map(f => {
+    const p = f.paciente, n = f.registros.filter(r => !r.evento).length, active = f.id === curId;
+    const status = f.finalizada ? '<span class="text-xs rounded-full bg-slate-200 text-slate-700 px-2 py-0.5">Finalizada</span>'
+      : f.monitor.inicio && !f.monitor.fim ? '<span class="text-xs rounded-full bg-red-100 text-red-700 px-2 py-0.5 font-bold">● Em anestesia</span>'
+      : '<span class="text-xs rounded-full bg-brand-100 text-brand-800 px-2 py-0.5">Aberta</span>';
+    return `<div class="card ${active ? 'ring-2 ring-brand-500' : ''}">
+      <div class="flex items-start gap-3">
+        <div class="text-3xl">${p.especie === 'Gato' ? '🐈' : p.especie === 'Equino' ? '🐎' : p.especie === 'Cão' ? '🐕' : '🐾'}</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap"><b class="truncate">${esc(p.nome || 'Sem nome')}</b>${status}</div>
+          <div class="text-sm text-slate-600 truncate">${esc([especieTxt(p), p.raca, p.peso && fmt(p.peso) + ' kg'].filter(Boolean).join(' · '))}</div>
+          <div class="text-sm text-slate-600 truncate">${esc(f.proc.nome || 'Procedimento não informado')}</div>
+          <div class="text-xs text-slate-400">${dataBR(f.proc.data)} · Tutor: ${esc(f.tutor.nome || '—')} · ${n} registro(s)</div>
+        </div>
+      </div>
+      <div class="grid grid-cols-4 gap-2 mt-3">
+        <button class="btn-primary text-sm py-2 col-span-2" data-open="${f.id}">Abrir</button>
+        <button class="btn-soft text-sm py-2" data-pdf="${f.id}">PDF</button>
+        <button class="btn-danger text-sm py-2" data-del="${f.id}">Excluir</button>
+      </div></div>`;
+  }).join('');
+}
+$('#listaFichas').addEventListener('click', e => {
+  const o = e.target.closest('[data-open]'), d = e.target.closest('[data-del]'), p = e.target.closest('[data-pdf]');
+  if (o) { curId = o.dataset.open; save(true); const f = cur(); go(f.monitor.inicio && !f.monitor.fim ? 'monitor' : 'paciente'); }
+  if (p) { curId = p.dataset.pdf; save(true); renderHeader(); exportPDF('save'); renderFichas(); }
+  if (d) {
+    const f = fichas.find(x => x.id === d.dataset.del);
+    if (!confirm(`Excluir definitivamente a ficha de "${f.paciente.nome || 'Sem nome'}"?`)) return;
+    fichas = fichas.filter(x => x.id !== f.id); if (curId === f.id) curId = null; save(true); render();
+  }
+});
+
+// Backup / restauração
+$('#btnBackup').onclick = () => {
+  const blob = new Blob([JSON.stringify({ app: 'vetanest', v: 1, exportedAt: new Date().toISOString(), profile, fichas }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vetanest-backup-${todayISO()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$('#inpRestore').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data.fichas)) throw new Error();
+    const ids = new Set(fichas.map(f => f.id)); let add = 0;
+    data.fichas.forEach(f => { if (f && f.id && !ids.has(f.id)) { fichas.push(f); add++; } });
+    if (data.profile && !profile.nome && confirm('Restaurar também o perfil profissional do backup?')) { profile = data.profile; LS.set(K.profile, profile); }
+    save(true); render(); toast(`${add} ficha(s) importada(s)`);
+  } catch { toast('Arquivo de backup inválido', 'err'); }
+};
+
+// ---------- Fármacos ----------
+$('#dlFarmacos').innerHTML = Object.keys(CONC).map(n => `<option value="${n}">`).join('');
+$('#faseBtns').innerHTML = FASES.map(f => `<button class="btn-soft text-sm py-3" data-addfarm="${f.k}">+ ${f.ic} ${f.l}</button>`).join('');
+$('#faseBtns').addEventListener('click', e => {
+  const b = e.target.closest('[data-addfarm]'); if (!b) return;
+  const f = cur(); const fase = b.dataset.addfarm;
+  f.farmacos.push({ id: uid(), fase, nome: '', dose: '', unidade: fase === 'Manutenção' ? '%' : 'mg/kg', via: fase === 'Manutenção' ? 'Inalatória' : 'IV', hora: hhmm(new Date()), conc: '', obs: '' });
+  save(); renderFarmacos();
+  setTimeout(() => { const els = $$('[data-fk="nome"]'); els[els.length - 1]?.focus(); }, 50);
+});
+
+function calcDose(d, peso) {
+  const dose = num(d.dose), kg = num(peso), conc = num(d.conc);
+  if (dose == null) return { total: '', vol: '' };
+  let mg = null, rate = false, label = '';
+  switch (d.unidade) {
+    case 'mg/kg': if (kg) mg = dose * kg; break;
+    case 'mcg/kg': if (kg) mg = dose * kg / 1000; break;
+    case 'UI/kg': if (kg) label = fmt(dose * kg, 1) + ' UI'; break;
+    case 'mL/kg': if (kg) return { total: fmt(dose * kg, 2) + ' mL', vol: fmt(dose * kg, 2) + ' mL' }; break;
+    case 'mcg/kg/min': if (kg) { mg = dose * kg * 60 / 1000; rate = true; } break;
+    case 'mcg/kg/h': if (kg) { mg = dose * kg / 1000; rate = true; } break;
+    case 'mg/kg/h': if (kg) { mg = dose * kg; rate = true; } break;
+    case 'mg': mg = dose; break;
+    case 'mL': return { total: fmt(dose, 2) + ' mL', vol: fmt(dose, 2) + ' mL' };
+    case '%': return { total: '', vol: '' };
+  }
+  if (mg == null) return { total: label, vol: '' };
+  const sfx = rate ? '/h' : '';
+  const total = (mg < 1 ? fmt(mg * 1000, 1) + ' mcg' : fmt(mg, 2) + ' mg') + sfx;
+  const vol = conc ? fmt(mg / conc, 2) + ' mL' + sfx : '';
+  return { total, vol };
+}
+
+function renderFarmacos() {
+  const f = cur(); if (!f) return;
+  $('#pesoFarm').textContent = f.paciente.peso ? fmt(f.paciente.peso) + ' kg' : 'não informado';
+  const opt = (arr, v) => arr.map(x => `<option ${x === v ? 'selected' : ''}>${x}</option>`).join('');
+  $('#listaFarm').innerHTML = FASES.map(fs => {
+    const items = f.farmacos.filter(d => d.fase === fs.k);
+    if (!items.length) return '';
+    return `<div class="card"><div class="card-title">${fs.ic} ${fs.l}</div><div class="space-y-3">` + items.map(d => {
+      const c = calcDose(d, f.paciente.peso);
+      return `<div class="rounded-xl border border-slate-200 bg-slate-50 p-3" data-farm="${d.id}">
+        <div class="grid grid-cols-6 gap-2">
+          <div class="col-span-6 sm:col-span-3"><label class="lbl">Fármaco</label><input class="inp" data-fk="nome" list="dlFarmacos" value="${esc(d.nome)}"></div>
+          <div class="col-span-3 sm:col-span-1"><label class="lbl">Dose</label><input class="inp font-bold" data-fk="dose" type="number" inputmode="decimal" step="any" value="${esc(d.dose)}"></div>
+          <div class="col-span-3 sm:col-span-2"><label class="lbl">Unidade</label><select class="inp" data-fk="unidade">${opt(UNIDADES, d.unidade)}</select></div>
+          <div class="col-span-3 sm:col-span-2"><label class="lbl">Via</label><select class="inp" data-fk="via">${opt(VIAS, d.via)}</select></div>
+          <div class="col-span-3 sm:col-span-1"><label class="lbl">Horário</label><input class="inp px-2" data-fk="hora" type="time" value="${esc(d.hora)}"></div>
+          <div class="col-span-3 sm:col-span-1"><label class="lbl">Conc. mg/mL</label><input class="inp" data-fk="conc" type="number" inputmode="decimal" step="any" value="${esc(d.conc)}"></div>
+          <div class="col-span-3 sm:col-span-2 flex items-end gap-2">
+            <div class="flex-1 rounded-xl bg-white border border-brand-200 px-3 py-2 text-sm"><div class="text-[10px] uppercase text-slate-500">Total / Volume</div><b class="text-brand-800" data-calc>${c.total || '—'}${c.vol ? ' · ' + c.vol : ''}</b></div>
+            <button class="btn-danger px-3 py-3" data-rmfarm="${d.id}" aria-label="Remover">🗑</button>
+          </div>
+          <div class="col-span-6"><input class="inp py-2 text-sm" data-fk="obs" placeholder="Observação (ex.: diluição, taxa em bomba, local do bloqueio)" value="${esc(d.obs)}"></div>
+        </div></div>`;
+    }).join('') + '</div></div>';
+  }).join('') || '<div class="card text-center text-slate-500">Adicione os fármacos utilizados em cada fase pelos botões acima.</div>';
+}
+$('#listaFarm').addEventListener('input', onFarmInput);
+$('#listaFarm').addEventListener('change', onFarmInput);
+function onFarmInput(e) {
+  const el = e.target, box = el.closest('[data-farm]'); if (!box || !el.dataset.fk) return;
+  const f = cur(), d = f.farmacos.find(x => x.id === box.dataset.farm);
+  d[el.dataset.fk] = el.value;
+  if (el.dataset.fk === 'nome' && e.type === 'change') {
+    const key = Object.keys(CONC).find(k => k.toLowerCase() === el.value.trim().toLowerCase());
+    if (key && !d.conc && CONC[key] != null) { d.conc = String(CONC[key]); $('[data-fk="conc"]', box).value = d.conc; }
+    if (key === 'Isoflurano' || key === 'Sevoflurano') { d.unidade = '%'; d.via = 'Inalatória'; $('[data-fk="unidade"]', box).value = '%'; $('[data-fk="via"]', box).value = 'Inalatória'; }
+  }
+  const c = calcDose(d, f.paciente.peso);
+  $('[data-calc]', box).textContent = (c.total || '—') + (c.vol ? ' · ' + c.vol : '');
+  save();
+}
+$('#listaFarm').addEventListener('click', e => {
+  const b = e.target.closest('[data-rmfarm]'); if (!b) return;
+  const f = cur(); f.farmacos = f.farmacos.filter(x => x.id !== b.dataset.rmfarm); save(); renderFarmacos();
+});
+function renderFluidoRate() {
+  const f = cur(); if (!f) return;
+  const t = num(f.fluido.taxa), kg = num(f.paciente.peso);
+  $('#fluidoMlH').textContent = t && kg ? fmt(t * kg, 1) + ' mL/h' : '—';
+}
+
+// ---------- Monitoração ----------
+let alertedFor = null, wakeLock = null;
+const paramRegs = f => f.registros.filter(r => !r.evento);
+
+async function keepAwake(on) {
+  try {
+    if (on && 'wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => wakeLock = null); }
+    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch {}
+}
+document.addEventListener('visibilitychange', () => { const f = cur(); if (!document.hidden && f && f.monitor.inicio && !f.monitor.fim) keepAwake(true); });
+
+$('#btnIniciar').onclick = () => {
+  const f = cur(); const now = new Date();
+  if (f.monitor.fim) { if (!confirm('Retomar a anestesia desta ficha?')) return; f.monitor.fim = null; }
+  else { f.monitor.inicio = now.getTime(); if (!f.resumo.inicioAnest) f.resumo.inicioAnest = hhmm(now); }
+  alertedFor = null; save(true); keepAwake(true); renderMonitor(); toast('Anestesia iniciada');
+};
+$('#btnEncerrar').onclick = () => {
+  const f = cur(); if (!confirm('Encerrar a anestesia agora?')) return;
+  const now = new Date(); f.monitor.fim = now.getTime(); if (!f.resumo.fimAnest) f.resumo.fimAnest = hhmm(now);
+  save(true); keepAwake(false); hideDue(); renderMonitor(); toast('Anestesia encerrada'); go('resumo');
+};
+
+function nextDue(f) {
+  if (!f.monitor.inicio || f.monitor.fim) return null;
+  const regs = paramRegs(f); const last = regs.length ? Math.max(regs[regs.length - 1].ts, f.monitor.inicio) : f.monitor.inicio;
+  return last + (f.monitor.intervalo || 5) * 60000;
+}
+
+let audioCtx;
+function beep() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.25, 0.5].forEach(t => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(0.25, audioCtx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + t + 0.18); o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + 0.2); });
+  } catch {}
+  navigator.vibrate?.([300, 150, 300]);
+}
+function hideDue() { $('#dueBanner').classList.add('hidden'); }
+$('#dueGo').onclick = () => { hideDue(); if (view !== 'monitor') go('monitor'); openReg(); };
+
+function tick() {
+  const f = cur(); const now = Date.now();
+  const running = f && f.monitor.inicio && !f.monitor.fim;
+  const hdr = $('#hdrTimer');
+  if (f && f.monitor.inicio) { hdr.classList.remove('hidden'); hdr.textContent = durStr((f.monitor.fim || now) - f.monitor.inicio).slice(0, 5); hdr.classList.toggle('opacity-60', !running); }
+  else hdr.classList.add('hidden');
+  if (!f) return;
+  if (view === 'monitor') {
+    $('#monElapsed').textContent = f.monitor.inicio ? durStr((f.monitor.fim || now) - f.monitor.inicio) : '00:00:00';
+    const nx = $('#monNext'), due = nextDue(f);
+    if (due) {
+      const left = due - now;
+      nx.textContent = left > 0 ? 'Próximo registro em ' + durStr(left).slice(3) : `Registro atrasado ${durStr(-left).slice(3)}`;
+      nx.classList.toggle('due', left <= 0); nx.classList.toggle('text-red-700', left <= 0);
+    } else { nx.textContent = f.monitor.fim ? 'Anestesia encerrada' : 'Inicie a anestesia'; nx.classList.remove('due', 'text-red-700'); }
+  }
+  const due = running && nextDue(f);
+  if (due && now >= due && alertedFor !== due) {
+    alertedFor = due; beep();
+    $('#dueText').textContent = `${f.paciente.nome || 'Paciente'} – intervalo de ${f.monitor.intervalo} min`;
+    if ($('#regModal').classList.contains('hidden')) $('#dueBanner').classList.remove('hidden');
+  }
+}
+setInterval(tick, 1000);
+
+function isBad(k, v, esp) {
+  const n = num(v); if (n == null) return false;
+  const r = (REF[esp] || {})[k] || REF._all[k]; if (!r) return false;
+  return n < r[0] || n > r[1];
+}
+function cell(r, k, esp, d) { const v = r[k]; if (v === '' || v == null) return '<span class="text-slate-300">–</span>'; return `<span class="${isBad(k, v, esp) ? 'bad' : ''}">${fmt(v, d)}</span>`; }
+
+function renderMonitor() {
+  const f = cur(); if (!f) return;
+  const running = f.monitor.inicio && !f.monitor.fim;
+  $('#btnIniciar').classList.toggle('hidden', running);
+  $('#btnIniciar').textContent = f.monitor.fim ? '↻ Retomar' : '▶ Iniciar anestesia';
+  $('#btnEncerrar').classList.toggle('hidden', !running);
+  $('#monStart').textContent = f.monitor.inicio ? `Início ${hhmm(new Date(f.monitor.inicio))}${f.monitor.fim ? ' · Término ' + hhmm(new Date(f.monitor.fim)) : ''}` : 'Anestesia não iniciada';
+  if (running) keepAwake(true);
+  const esp = f.paciente.especie;
+  // últimos valores
+  const regs = paramRegs(f);
+  const lastOf = k => { for (let i = regs.length - 1; i >= 0; i--) if (regs[i][k] !== '' && regs[i][k] != null) return regs[i][k]; return null; };
+  const tiles = [['fc', 'FC', 'bpm'], ['pam', 'PAM', 'mmHg'], ['spo2', 'SpO₂', '%'], ['etco2', 'EtCO₂', 'mmHg'], ['temp', 'Temp', '°C'], ['fr', 'FR', 'mpm']];
+  $('#lastTiles').innerHTML = tiles.map(([k, l, u]) => { const v = lastOf(k); return `<div class="tile"><div class="text-[11px] font-semibold text-slate-500">${l}</div><div class="text-2xl font-bold ${isBad(k, v, esp) ? 'text-red-600' : 'text-slate-800'}">${v == null ? '–' : fmt(v)}</div><div class="text-[10px] text-slate-400">${u}</div></div>`; }).join('');
+  // tabela
+  $('#regCount').textContent = `(${regs.length} aferições, ${f.registros.length - regs.length} eventos)`;
+  $('#regBody').innerHTML = [...f.registros].reverse().map(r => {
+    if (r.evento) return `<tr class="bg-amber-50 cursor-pointer" data-reg="${r.id}"><td class="px-2 py-2 font-mono font-bold">${r.hora}</td><td colspan="11" class="px-2 text-amber-900">⚡ ${esc(r.obs)}</td></tr>`;
+    const pa = (r.pas || r.pad || r.pam) ? `${cell(r, 'pas', esp)}/${cell(r, 'pad', esp)} (${cell(r, 'pam', esp)})` : '<span class="text-slate-300">–</span>';
+    const vap = r.vap !== '' && r.vap != null ? `${r.agente || ''} ${fmt(r.vap)}%` : (r.agente || '–');
+    const vent = [r.modo, r.vc && 'VC ' + r.vc, r.peep && 'PEEP ' + r.peep].filter(Boolean).join(' ') || '–';
+    const plano = [r.plano, r.palpebral && 'P' + r.palpebral, r.corneano && 'C' + r.corneano].filter(Boolean).join(' ') || '–';
+    return `<tr class="cursor-pointer hover:bg-brand-50" data-reg="${r.id}"><td class="px-2 py-2 font-mono font-bold">${r.hora}</td><td class="px-2 text-center">${cell(r, 'fc', esp)}</td><td class="px-2 text-center">${cell(r, 'fr', esp)}</td><td class="px-2 text-center whitespace-nowrap">${pa}</td><td class="px-2 text-center">${cell(r, 'spo2', esp)}</td><td class="px-2 text-center">${cell(r, 'etco2', esp)}</td><td class="px-2 text-center">${cell(r, 'temp', esp, 1)}</td><td class="px-2 text-center">${cell(r, 'glic', esp)}</td><td class="px-2 text-center whitespace-nowrap">${esc(plano)}</td><td class="px-2 text-center whitespace-nowrap">${esc(vap)}</td><td class="px-2 text-center whitespace-nowrap text-xs">${esc(vent)}</td><td class="px-2 text-xs text-slate-600 max-w-[14rem] truncate">${esc(r.obs)}</td></tr>`;
+  }).join('') || '<tr><td colspan="12" class="text-center text-slate-400 py-6">Nenhum registro ainda.</td></tr>';
+  // eventos
+  $('#eventChips').innerHTML = EVENTOS.map(e => `<button class="chip" data-ev="${e}">${e}</button>`).join('');
+  // gráfico
+  const cv = $('#trend'); const ok = regs.length >= 2;
+  cv.classList.toggle('hidden', !ok); $('#trendEmpty').classList.toggle('hidden', ok);
+  if (ok) { const dpr = window.devicePixelRatio || 1; const w = cv.clientWidth || 600, h = cv.clientHeight || 192; cv.width = w * dpr; cv.height = h * dpr; drawTrend(cv.getContext('2d'), regs, w, h, dpr); }
+  tick();
+}
+$('#regBody').addEventListener('click', e => { const tr = e.target.closest('[data-reg]'); if (tr) openReg(tr.dataset.reg); });
+window.addEventListener('resize', () => { if (view === 'monitor') renderMonitor(); });
+
+$('#eventChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-ev]'); if (!b) return;
+  const f = cur(); const now = new Date(); const ev = b.dataset.ev;
+  const txt = prompt(`Registrar evento às ${hhmm(now)}:`, ev); if (txt == null) return;
+  f.registros.push({ id: uid(), evento: true, ts: now.getTime(), hora: hhmm(now), obs: txt || ev });
+  const map = { 'Início da cirurgia': 'inicioCir', 'Incisão': 'inicioCir', 'Fim da cirurgia': 'fimCir', 'Extubação': 'extubacao' };
+  if (map[ev] && !f.resumo[map[ev]]) f.resumo[map[ev]] = hhmm(now);
+  sortRegs(f); save(); renderMonitor(); toast('Evento registrado: ' + (txt || ev));
+});
+const sortRegs = f => f.registros.sort((a, b) => a.ts - b.ts);
+
+function drawTrend(ctx, regs, w, h, scale = 1) {
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+  const series = [['fc', 'FC', '#dc2626'], ['pam', 'PAM', '#2563eb'], ['pas', 'PAS', '#93c5fd'], ['spo2', 'SpO2', '#0d9488'], ['etco2', 'EtCO2', '#d97706'], ['fr', 'FR', '#7c3aed']];
+  const L = 34, R = 10, T = 22, B = 20, pw = w - L - R, ph = h - T - B;
+  const t0 = regs[0].ts, t1 = regs[regs.length - 1].ts, span = Math.max(t1 - t0, 60000);
+  let max = 100; regs.forEach(r => series.forEach(([k]) => { const n = num(r[k]); if (n != null && n > max) max = n; }));
+  max = Math.ceil(max / 20) * 20;
+  const X = ts => L + (ts - t0) / span * pw, Y = v => T + ph - v / max * ph;
+  ctx.font = '10px sans-serif'; ctx.strokeStyle = '#e2e8f0'; ctx.fillStyle = '#64748b'; ctx.lineWidth = 1;
+  for (let v = 0; v <= max; v += max > 200 ? 40 : 20) { ctx.beginPath(); ctx.moveTo(L, Y(v)); ctx.lineTo(w - R, Y(v)); ctx.stroke(); ctx.textAlign = 'right'; ctx.fillText(v, L - 4, Y(v) + 3); }
+  const stepMs = Math.max(5, Math.ceil(span / 60000 / 8 / 5) * 5) * 60000; ctx.textAlign = 'center';
+  for (let t = t0; t <= t1 + 1; t += stepMs) ctx.fillText(hhmm(new Date(t)), X(t), h - 6);
+  series.forEach(([k, l, c]) => {
+    const pts = regs.filter(r => num(r[k]) != null); if (!pts.length) return;
+    ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 2; ctx.beginPath();
+    pts.forEach((r, i) => { const x = X(r.ts), y = Y(num(r[k])); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+    pts.forEach(r => { ctx.beginPath(); ctx.arc(X(r.ts), Y(num(r[k])), 2.5, 0, 7); ctx.fill(); });
+  });
+  let lx = L; ctx.textAlign = 'left'; ctx.font = 'bold 10px sans-serif';
+  series.forEach(([k, l, c]) => { if (!regs.some(r => num(r[k]) != null)) return; ctx.fillStyle = c; ctx.fillRect(lx, 7, 10, 4); ctx.fillText(l, lx + 13, 12); lx += ctx.measureText(l).width + 26; });
+}
+
+// ---------- Modal de registro ----------
+let editId = null, rsel = {};
+const stepperHTML = fd => `<div class="bg-white rounded-xl border border-slate-200 p-2">
+  <div class="flex justify-between text-xs font-semibold text-slate-600 px-1"><span>${fd.l}</span><span class="text-slate-400">${fd.u}</span></div>
+  <div class="flex items-center gap-1 mt-1">
+    <button type="button" class="w-11 h-11 rounded-lg bg-slate-100 text-2xl font-bold text-slate-700 active:bg-slate-200 shrink-0" data-step="-1" data-k="${fd.k}">−</button>
+    <input class="w-full min-w-0 text-center text-2xl font-bold py-1 rounded-lg border border-transparent focus:border-brand-500 outline-none" type="number" inputmode="decimal" step="any" data-r="${fd.k}">
+    <button type="button" class="w-11 h-11 rounded-lg bg-slate-100 text-2xl font-bold text-slate-700 active:bg-slate-200 shrink-0" data-step="1" data-k="${fd.k}">+</button>
+  </div></div>`;
+FIELDS.forEach(fd => $(`[data-grp="${fd.grp}"]`).insertAdjacentHTML('beforeend', stepperHTML(fd)));
+$('#obsChips').innerHTML = OBS_CHIPS.map(c => `<button type="button" class="chip text-xs py-1.5" data-obs="${c}">${c}</button>`).join('');
+
+function openReg(id) {
+  const f = cur(); if (!f) return;
+  hideDue(); editId = id || null;
+  const r = id ? f.registros.find(x => x.id === id) : null;
+  const regs = paramRegs(f); const last = regs[regs.length - 1];
+  let src = r || (last ? { ...last, obs: '' } : { agente: guessAgente(f), modo: 'Espont.' });
+  $('#regTitle').textContent = r ? (r.evento ? 'Editar evento' : 'Editar registro') : 'Novo registro';
+  $('#regHora').value = r ? r.hora : hhmm(new Date());
+  $('#regHint').textContent = r ? '' : last ? 'Valores do último registro pré-preenchidos — ajuste com − / + ou digite.' : 'Primeiro registro: preencha os valores aferidos.';
+  FIELDS.forEach(fd => $(`[data-r="${fd.k}"]`).value = src[fd.k] ?? '');
+  rsel = {}; RSEGS.forEach(k => { rsel[k] = src[k] || ''; paintSeg($(`[data-rseg="${k}"]`), rsel[k]); });
+  $('#regObs').value = r ? r.obs || '' : '';
+  $('#regDel').classList.toggle('hidden', !r);
+  $('#regBodyForm').scrollTop = 0;
+  $$('#regBodyForm > div').forEach((d, i) => { if (i < 6) d.classList.toggle('hidden', !!(r && r.evento)); });
+  $('#regModal').classList.remove('hidden'); document.body.style.overflow = 'hidden';
+}
+function guessAgente(f) { if (f.farmacos.some(d => /sevo/i.test(d.nome))) return 'Sevo'; if (f.farmacos.some(d => /iso/i.test(d.nome))) return 'Iso'; return ''; }
+function closeModal(m) { m.classList.add('hidden'); document.body.style.overflow = ''; }
+$$('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(b.closest('.fixed'))));
+$('#btnRegistrar').onclick = () => openReg();
+$('#regAgora').onclick = () => $('#regHora').value = hhmm(new Date());
+
+// stepper com repetição ao manter pressionado
+let repT, repI;
+function doStep(btn) {
+  const fd = FIELDS.find(x => x.k === btn.dataset.k), inp = $(`[data-r="${fd.k}"]`);
+  const esp = cur()?.paciente.especie; const base = (BASES[esp] || {})[fd.k] ?? fd.base;
+  let v = num(inp.value); v = v == null ? base : v + fd.step * +btn.dataset.step;
+  const dec = String(fd.step).split('.')[1]?.length || 0; v = Math.max(0, +v.toFixed(dec)); if (fd.max) v = Math.min(fd.max, v);
+  inp.value = v; if (['pas', 'pad'].includes(fd.k)) autoPAM();
+}
+$('#regModal').addEventListener('pointerdown', e => {
+  const b = e.target.closest('[data-step]'); if (!b) return; e.preventDefault();
+  doStep(b); repT = setTimeout(() => repI = setInterval(() => doStep(b), 90), 450);
+});
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => $('#regModal').addEventListener(ev, () => { clearTimeout(repT); clearInterval(repI); }));
+function autoPAM() { const s = num($('[data-r="pas"]').value), d = num($('[data-r="pad"]').value); if (s != null && d != null) $('[data-r="pam"]').value = Math.round((s + 2 * d) / 3); }
+$('[data-r="pas"]').addEventListener('input', autoPAM); $('[data-r="pad"]').addEventListener('input', autoPAM);
+$('#regModal').addEventListener('click', e => {
+  const b = e.target.closest('[data-rseg] > button'); if (b) { const k = b.parentElement.dataset.rseg; rsel[k] = rsel[k] === b.dataset.v ? '' : b.dataset.v; paintSeg(b.parentElement, rsel[k]); }
+  const c = e.target.closest('[data-obs]'); if (c) { const t = $('#regObs'); t.value = (t.value ? t.value.trim() + '; ' : '') + c.dataset.obs + ' '; t.focus(); }
+  if (e.target === $('#regModal')) closeModal($('#regModal'));
+});
+$('#regClear').onclick = () => { FIELDS.forEach(fd => $(`[data-r="${fd.k}"]`).value = ''); RSEGS.forEach(k => { rsel[k] = ''; paintSeg($(`[data-rseg="${k}"]`), ''); }); $('#regObs').value = ''; };
+$('#regDel').onclick = () => { const f = cur(); if (!confirm('Excluir este registro?')) return; f.registros = f.registros.filter(r => r.id !== editId); save(); closeModal($('#regModal')); renderMonitor(); };
+
+function tsFromHora(hora, ref) {
+  const [h, m] = hora.split(':').map(Number); const d = new Date(ref); d.setHours(h, m, 0, 0);
+  const diff = d.getTime() - ref; if (diff > 12 * 3600e3) d.setDate(d.getDate() - 1); if (diff < -12 * 3600e3) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
+$('#regSave').onclick = () => {
+  const f = cur(); const hora = $('#regHora').value || hhmm(new Date());
+  const old = editId ? f.registros.find(r => r.id === editId) : null;
+  const rec = { id: editId || uid(), hora, ts: tsFromHora(hora, old ? old.ts : Date.now()), obs: $('#regObs').value.trim() };
+  if (old && old.evento) { rec.evento = true; if (!rec.obs) return toast('Descreva o evento', 'err'); }
+  else {
+    FIELDS.forEach(fd => rec[fd.k] = $(`[data-r="${fd.k}"]`).value);
+    RSEGS.forEach(k => rec[k] = rsel[k]);
+    if (!FIELDS.some(fd => rec[fd.k] !== '') && !rec.obs && !rec.plano) return toast('Informe ao menos um parâmetro ou observação', 'err');
+    if (num(rec.pas) != null && num(rec.pad) != null && num(rec.pad) > num(rec.pas)) return toast('PAD maior que PAS – verifique', 'err');
+  }
+  if (old) Object.assign(old, rec); else f.registros.push(rec);
+  sortRegs(f); if (!old) alertedFor = null;
+  save(true); closeModal($('#regModal')); renderMonitor(); toast('Registro salvo às ' + hora);
+};
+
+// ---------- Resumo ----------
+const HORARIOS = [['inicioAnest', 'Início anestesia'], ['inicioCir', 'Início cirurgia'], ['fimCir', 'Fim cirurgia'], ['fimAnest', 'Fim anestesia'], ['extubacao', 'Extubação']];
+$('#horarios').innerHTML = HORARIOS.map(([k, l]) => `<div><label class="lbl">${l}</label><div class="flex gap-1"><input class="inp px-2 font-mono" type="time" data-f="resumo.${k}"><button class="btn-ghost px-2 py-2 text-xs" data-now="${k}" title="Agora">⏱</button></div></div>`).join('');
+$('#horarios').addEventListener('click', e => { const b = e.target.closest('[data-now]'); if (!b) return; const f = cur(); f.resumo[b.dataset.now] = hhmm(new Date()); save(); fillForms(); });
+
+function duracaoMin(f) {
+  const a = f.resumo.inicioAnest, b = f.resumo.fimAnest;
+  if (a && b) { const [h1, m1] = a.split(':').map(Number), [h2, m2] = b.split(':').map(Number); let d = (h2 * 60 + m2) - (h1 * 60 + m1); if (d < 0) d += 1440; return d; }
+  if (f.monitor.inicio) return Math.round(((f.monitor.fim || Date.now()) - f.monitor.inicio) / 60000);
+  return null;
+}
+function renderResumo() {
+  const f = cur(); if (!f) return;
+  const d = duracaoMin(f), t = num(f.fluido.taxa), kg = num(f.paciente.peso);
+  $('#fluidoInfo').textContent = `Duração: ${d != null ? Math.floor(d / 60) + 'h' + pad2(d % 60) : '—'} · Taxa: ${t ? fmt(t) + ' mL/kg/h' : '—'} · Peso: ${kg ? fmt(kg) + ' kg' : '—'}`;
+}
+$('#btnCalcFluido').onclick = () => {
+  const f = cur(); const d = duracaoMin(f), t = num(f.fluido.taxa), kg = num(f.paciente.peso);
+  if (!d || !t || !kg) return toast('Informe peso, taxa de fluido e horários de anestesia', 'err');
+  f.resumo.fluidoTotal = String(Math.round(t * kg * d / 60)); save(); fillForms(); toast('Volume estimado – ajuste se houve bolus/alterações');
+};
+$('#btnPuxarEventos').onclick = () => {
+  const f = cur(); const ev = f.registros.filter(r => r.evento || r.obs).map(r => `${r.hora} – ${r.obs}`).filter(s => !s.endsWith('– '));
+  if (!ev.length) return toast('Nenhum evento/observação registrado', 'err');
+  f.resumo.intercorrenciasTrans = (f.resumo.intercorrenciasTrans ? f.resumo.intercorrenciasTrans.trim() + '\n' : '') + ev.join('\n');
+  save(); fillForms();
+};
+
+// ---------- Perfil ----------
+$('#selUF').innerHTML = '<option value="">UF</option>' + UFS.map(u => `<option>${u}</option>`).join('');
+function renderPerfil() {
+  const show = (img, none, src) => { $(img).src = src || ''; $(img).classList.toggle('hidden', !src); $(none).classList.toggle('hidden', !!src); };
+  show('#logoPrev', '#logoNone', profile.logo); show('#sigPrev', '#sigNone', profile.assinatura);
+  let used = 0; try { for (const k in localStorage) if (k.startsWith('vetanest')) used += (localStorage.getItem(k) || '').length; } catch {}
+  $('#storageInfo').textContent = `Uso atual: ~${(used / 1024).toFixed(0)} KB · ${fichas.length} ficha(s) salva(s).`;
+}
+function loadImage(file, maxW, maxH, type = 'image/png') {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => { const img = new Image(); img.onload = () => {
+      const k = Math.min(1, maxW / img.width, maxH / img.height); const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const ctx = c.getContext('2d'); if (type === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); }
+      ctx.drawImage(img, 0, 0, c.width, c.height); res(c.toDataURL(type, 0.9));
+    }; img.onerror = rej; img.src = fr.result; };
+    fr.onerror = rej; fr.readAsDataURL(file);
+  });
+}
+$('#inpLogo').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { profile.logo = await loadImage(f, 600, 300); LS.set(K.profile, profile); renderPerfil(); toast('Logotipo salvo'); } catch { toast('Imagem inválida', 'err'); } };
+$('#inpSig').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { profile.assinatura = await loadImage(f, 600, 240); LS.set(K.profile, profile); renderPerfil(); toast('Assinatura salva'); } catch { toast('Imagem inválida', 'err'); } };
+$('#rmLogo').onclick = () => { delete profile.logo; LS.set(K.profile, profile); renderPerfil(); };
+$('#rmSig').onclick = () => { delete profile.assinatura; LS.set(K.profile, profile); renderPerfil(); };
+
+// Assinatura desenhada
+const pad = $('#sigPad'); let drawing = false, drew = false;
+function sigInit() { const dpr = window.devicePixelRatio || 1; pad.width = pad.clientWidth * dpr; pad.height = pad.clientHeight * dpr; const c = pad.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.lineWidth = 2.4; c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = '#0b1f5c'; drew = false; }
+const sigPos = e => { const r = pad.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+pad.addEventListener('pointerdown', e => { drawing = true; drew = true; pad.setPointerCapture(e.pointerId); const c = pad.getContext('2d'); c.beginPath(); c.moveTo(...sigPos(e)); });
+pad.addEventListener('pointermove', e => { if (!drawing) return; const c = pad.getContext('2d'); c.lineTo(...sigPos(e)); c.stroke(); });
+pad.addEventListener('pointerup', () => drawing = false);
+$('#btnDesenhar').onclick = () => { $('#sigModal').classList.remove('hidden'); requestAnimationFrame(sigInit); };
+$('#sigLimpar').onclick = sigInit;
+$('#sigSalvar').onclick = () => {
+  if (!drew) return toast('Desenhe a assinatura', 'err');
+  // recorta a área desenhada
+  const c = pad.getContext('2d'), { width: w, height: h } = pad, d = c.getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = 0, y1 = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 0) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  const m = 8, cw = Math.min(w, x1 - x0 + 2 * m), ch = Math.min(h, y1 - y0 + 2 * m), out = document.createElement('canvas');
+  out.width = cw; out.height = ch; out.getContext('2d').drawImage(pad, Math.max(0, x0 - m), Math.max(0, y0 - m), cw, ch, 0, 0, cw, ch);
+  profile.assinatura = out.toDataURL('image/png'); LS.set(K.profile, profile); closeModal($('#sigModal')); renderPerfil(); toast('Assinatura salva');
+};
+
+// ---------- PDF ----------
+function pdfFileName(f) {
+  const s = (f.paciente.nome || 'paciente').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w-]+/g, '_');
+  return `Ficha_Anestesica_${s}_${(f.proc.data || todayISO())}.pdf`;
+}
+// Fontes padrão do jsPDF usam WinAnsi: troca caracteres fora desse conjunto.
+const pdfSafe = s => String(s ?? '').replace(/−/g, '-').replace(/₂/g, '2').replace(/[\u{1F000}-\u{1FFFF}\u2600-\u27BF]/gu, '');
+function buildPDF(f, opts = {}) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 10;
+  const BRAND = [15, 118, 110], DARK = [30, 41, 59], GRAY = [100, 116, 139];
+  const p = f.paciente, t = f.tutor, pr = f.proc, rs = f.resumo, esp = p.especie;
+  const crmv = [profile.crmv && 'CRMV-' + (profile.uf || '') + ' ' + profile.crmv].filter(Boolean).join('');
+
+  // --- Cabeçalho
+  let x = M, y = M;
+  if (profile.logo) {
+    try { const ip = doc.getImageProperties(profile.logo); const h = 18, w = Math.min(45, ip.width / ip.height * h); const hh = w / (ip.width / ip.height);
+      doc.addImage(profile.logo, M, y + (18 - hh) / 2, w, hh); x = M + w + 4; } catch {}
+  }
+  doc.setTextColor(...DARK); doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+  doc.text(f.clinica || profile.clinica || 'Clínica Veterinária', x, y + 6);
+  doc.setFontSize(10.5); doc.setTextColor(...BRAND); doc.text('FICHA ANESTÉSICA VETERINÁRIA', x, y + 12);
+  if (profile.contato) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...GRAY); doc.text(profile.contato, x, y + 17); }
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...DARK);
+  doc.text('Anestesista: ' + (profile.nome || '________________________'), W - M, y + 5, { align: 'right' });
+  doc.text(crmv || 'CRMV: __________', W - M, y + 10, { align: 'right' });
+  doc.text('Data: ' + (dataBR(pr.data) || '___/___/_____'), W - M, y + 15, { align: 'right' });
+  y += 21; doc.setDrawColor(...BRAND); doc.setLineWidth(0.8); doc.line(M, y, W - M, y); y += 3;
+
+  const _text = doc.text.bind(doc); doc.text = (t, ...a) => _text(Array.isArray(t) ? t.map(pdfSafe) : pdfSafe(t), ...a);
+  const common = { didParseCell: d => { d.cell.text = d.cell.text.map(pdfSafe); }, margin: { left: M, right: M, top: 12, bottom: 12 }, styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.2, textColor: DARK, lineColor: [203, 213, 225], lineWidth: 0.15 }, headStyles: { fillColor: BRAND, textColor: 255, fontStyle: 'bold' } };
+  const L = { fontStyle: 'bold', textColor: GRAY, cellWidth: 22 };
+  const sexo = [p.sexo, p.castrado ? (p.sexo === 'Fêmea' ? 'castrada' : 'castrado') : ''].filter(Boolean).join(' ');
+  const asa = pr.asa ? 'ASA ' + pr.asa + (pr.emergencia ? ' E' : '') : (pr.emergencia ? 'E' : '');
+  const jejum = [pr.jejumSolido && 'Sólido ' + fmt(pr.jejumSolido) + ' h', pr.jejumLiquido && 'Líquido ' + fmt(pr.jejumLiquido) + ' h'].filter(Boolean).join(' / ');
+  const lb = s => ({ content: s, styles: L });
+  // --- Paciente / Tutor / Procedimento
+  doc.autoTable({ ...common, startY: y, theme: 'grid',
+    head: [[{ content: 'PACIENTE', colSpan: 2 }, { content: 'TUTOR', colSpan: 2 }, { content: 'PROCEDIMENTO', colSpan: 2 }]],
+    body: [
+      [lb('Nome'), p.nome, lb('Nome'), t.nome, lb('Procedimento'), pr.nome],
+      [lb('Espécie'), especieTxt(p), lb('Telefone'), t.tel, lb('Cirurgião'), pr.cirurgiao],
+      [lb('Raça'), p.raca, lb('CPF'), t.cpf, lb('ASA / Risco'), [asa, pr.risco && 'Risco ' + pr.risco.toLowerCase()].filter(Boolean).join(' · ')],
+      [lb('Idade / Sexo'), [p.idade, sexo].filter(Boolean).join(' · '), lb('Local'), f.clinica, lb('Jejum'), jejum],
+      [lb('Peso'), p.peso ? fmt(p.peso) + ' kg' : '', { content: pr.obs ? 'Avaliação pré-anestésica: ' + pr.obs : '', colSpan: 4, styles: { fontSize: 7.5 } }],
+    ],
+    columnStyles: { 1: { cellWidth: 60 }, 3: { cellWidth: 60 } },
+  });
+  y = doc.lastAutoTable.finalY + 3;
+
+  // --- Fármacos
+  const ordem = FASES.map(x => x.k);
+  const farm = [...f.farmacos].filter(d => d.nome || d.dose).sort((a, b) => ordem.indexOf(a.fase) - ordem.indexOf(b.fase) || (a.hora || '').localeCompare(b.hora || ''));
+  const fl = f.fluido, flRate = num(fl.taxa) && num(p.peso) ? ` (${fmt(num(fl.taxa) * num(p.peso), 1)} mL/h)` : '';
+  doc.autoTable({ ...common, startY: y, theme: 'grid',
+    head: [['Fase', 'Fármaco', 'Dose', 'Via', 'Horário', 'Dose total', 'Volume', 'Observação']],
+    body: farm.length ? farm.map(d => { const c = calcDose(d, p.peso); return [d.fase, d.nome, d.dose ? fmt(d.dose) + ' ' + d.unidade : '', d.via, d.hora, c.total, c.vol, d.obs]; })
+      : [[{ content: 'Nenhum fármaco registrado', colSpan: 8, styles: { halign: 'center', textColor: GRAY } }]],
+    foot: [[{ content: `Fluidoterapia: ${fl.tipo || '—'}${fl.taxa ? ' · ' + fmt(fl.taxa) + ' mL/kg/h' + flRate : ''}${rs.fluidoTotal ? ' · Volume total: ' + fmt(rs.fluidoTotal) + ' mL' : ''}`, colSpan: 8 }]],
+    showFoot: 'lastPage', footStyles: { fillColor: [240, 253, 250], textColor: DARK, fontStyle: 'bold' },
+    columnStyles: { 0: { cellWidth: 28, fontStyle: 'bold' }, 1: { cellWidth: 40 }, 2: { cellWidth: 30 }, 3: { cellWidth: 20 }, 4: { cellWidth: 16, halign: 'center' }, 5: { cellWidth: 26 }, 6: { cellWidth: 24 } },
+  });
+  y = doc.lastAutoTable.finalY + 3;
+
+  // --- Parâmetros
+  const t0 = f.monitor.inicio || (f.registros[0] && f.registros[0].ts);
+  const keys = ['fc', 'fr', 'pas', 'pad', 'pam', 'spo2', 'etco2', 'temp', 'glic'];
+  const body = f.registros.map(r => {
+    const tmin = t0 ? Math.round((r.ts - t0) / 60000) : '';
+    if (r.evento) return [r.hora, tmin, { content: 'EVENTO: ' + r.obs, colSpan: 17, styles: { fontStyle: 'bold', textColor: [146, 64, 14], fillColor: [255, 251, 235] } }];
+    return [r.hora, tmin, ...keys.map(k => fmt(r[k], k === 'temp' ? 1 : undefined)), r.plano || '', r.palpebral || '', r.corneano || '',
+      r.vap !== '' && r.vap != null ? `${r.agente ? r.agente + ' ' : ''}${fmt(r.vap)}` : r.agente || '', r.modo || '',
+      [r.vc && 'VC ' + r.vc, r.peep && 'PEEP ' + r.peep, r.pip && 'Pp ' + r.pip, r.fio2 && 'FiO2 ' + r.fio2].filter(Boolean).join(' '), r.obs || ''];
+  });
+  doc.autoTable({ ...common, startY: y, theme: 'grid',
+    head: [['Hora', 'T+min', 'FC', 'FR', 'PAS', 'PAD', 'PAM', 'SpO2', 'EtCO2', 'T °C', 'Glic', 'Plano', 'Palp.', 'Córn.', 'Vap. %', 'Modo', 'Ventilação', 'Observações / intercorrências']],
+    body: body.length ? body : [[{ content: 'Nenhum parâmetro registrado', colSpan: 18, styles: { halign: 'center', textColor: GRAY } }]],
+    styles: { ...common.styles, fontSize: 7.5, halign: 'center', cellPadding: 1 },
+    headStyles: { ...common.headStyles, fontSize: 7, halign: 'center' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 11 }, 1: { cellWidth: 10, textColor: GRAY }, 2: { cellWidth: 10 }, 3: { cellWidth: 9 }, 4: { cellWidth: 10 }, 5: { cellWidth: 10 }, 6: { cellWidth: 10 }, 7: { cellWidth: 10 }, 8: { cellWidth: 11 }, 9: { cellWidth: 10 }, 10: { cellWidth: 10 }, 11: { cellWidth: 11 }, 12: { cellWidth: 9 }, 13: { cellWidth: 9 }, 14: { cellWidth: 15 }, 15: { cellWidth: 13 }, 16: { cellWidth: 28 }, 17: { halign: 'left' } },
+    didParseCell: data => {
+      common.didParseCell(data); if (data.section !== 'body') return; const k = keys[data.column.index - 2]; const r = f.registros[data.row.index];
+      if (k && r && !r.evento && isBad(k, r[k], esp)) { data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold'; }
+    },
+  });
+  y = doc.lastAutoTable.finalY + 3;
+  doc.setFontSize(6.5); doc.setTextColor(...GRAY);
+  doc.text(doc.splitTextToSize('Plano (Guedel): I, II, III-1 superficial, III-2 cirúrgico, III-3 profundo, IV. Reflexos: + presente, ± diminuído, - ausente. Globo: C central, R rotacionado. Valores em vermelho: fora da faixa de referência aproximada para a espécie.', W - 2 * M), M, y + 1);
+  y += 4;
+
+  // --- Gráfico
+  const regs = paramRegs(f);
+  if (opts.grafico !== false && regs.length >= 2) {
+    const gh = 52; if (y + gh > H - 14) { doc.addPage(); y = 14; }
+    const cv = document.createElement('canvas'), cw = 1100, ch = Math.round(cw * gh / (W - 2 * M));
+    cv.width = cw * 2; cv.height = ch * 2; drawTrend(cv.getContext('2d'), regs, cw, ch, 2);
+    doc.addImage(cv.toDataURL('image/png'), 'PNG', M, y, W - 2 * M, gh); doc.setDrawColor(203, 213, 225); doc.setLineWidth(0.2); doc.rect(M, y, W - 2 * M, gh);
+    y += gh + 3;
+  }
+
+  // --- Resumo final
+  const dmin = duracaoMin(f);
+  doc.autoTable({ ...common, startY: y, theme: 'grid', pageBreak: 'avoid',
+    head: [[{ content: 'RESUMO DA ANESTESIA', colSpan: 8 }]],
+    body: [
+      [lb('Início anest.'), rs.inicioAnest, lb('Início cir.'), rs.inicioCir, lb('Fim cir.'), rs.fimCir, lb('Fim anest.'), rs.fimAnest],
+      [lb('Extubação'), rs.extubacao, lb('Duração'), dmin != null ? `${Math.floor(dmin / 60)}h${pad2(dmin % 60)}min` : '', lb('Fluido total'), rs.fluidoTotal ? fmt(rs.fluidoTotal) + ' mL' : '', lb('Recuperação'), rs.recuperacao],
+      [lb('Intercorr. trans'), { content: rs.intercorrenciasTrans || 'Sem intercorrências dignas de nota.', colSpan: 7 }],
+      [lb('Pós-op. imediato'), { content: rs.intercorrenciasPos || '—', colSpan: 7 }],
+      ...(rs.obs ? [[lb('Observações'), { content: rs.obs, colSpan: 7 }]] : []),
+    ],
+    columnStyles: { 0: { cellWidth: 26 }, 2: { cellWidth: 22 }, 4: { cellWidth: 22 }, 6: { cellWidth: 22 } },
+  });
+  y = doc.lastAutoTable.finalY + 4;
+
+  // --- Assinatura / carimbo
+  const sh = 30; if (y + sh > H - 10) { doc.addPage(); y = 16; }
+  doc.setDrawColor(148, 163, 184); doc.setLineWidth(0.2); doc.setLineDashPattern([1.2, 1], 0);
+  doc.rect(M, y, 70, sh - 2); doc.setLineDashPattern([], 0);
+  doc.setFontSize(7); doc.setTextColor(...GRAY); doc.text('Carimbo', M + 35, y + sh - 4, { align: 'center' });
+  const sx = W - M - 95, lineY = y + sh - 9;
+  if (profile.assinatura) { try { const ip = doc.getImageProperties(profile.assinatura); const hh = 16, ww = Math.min(80, ip.width / ip.height * hh); doc.addImage(profile.assinatura, sx + (95 - ww) / 2, lineY - hh - 0.5, ww, ww / (ip.width / ip.height)); } catch {} }
+  doc.setDrawColor(...DARK); doc.line(sx, lineY, W - M, lineY);
+  doc.setFontSize(9); doc.setTextColor(...DARK); doc.setFont('helvetica', 'bold');
+  doc.text(profile.nome || 'Médico(a) Veterinário(a) Anestesista', sx + 47.5, lineY + 4, { align: 'center' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.text(crmv || 'CRMV', sx + 47.5, lineY + 8, { align: 'center' });
+
+  // --- Rodapé
+  const n = doc.getNumberOfPages(), gen = new Date().toLocaleString('pt-BR');
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i); doc.setFontSize(7); doc.setTextColor(...GRAY);
+    doc.text(`${p.nome || 'Paciente'} · ${pr.nome || ''} · Gerado em ${gen} – VetAnest Monitor`, M, H - 5);
+    doc.text(`Página ${i} de ${n}`, W - M, H - 5, { align: 'right' });
+  }
+  return doc;
+}
+
+async function exportPDF(mode = 'save') {
+  const f = cur(); if (!f) return;
+  if (!window.jspdf) return toast('Biblioteca de PDF não carregada – conecte-se à internet uma vez.', 'err');
+  try {
+    const doc = buildPDF(f, { grafico: $('#optGrafico').checked });
+    const name = pdfFileName(f);
+    if (mode === 'share') {
+      const blob = doc.output('blob'), file = new File([blob], name, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+      window.open(URL.createObjectURL(blob), '_blank');
+    } else { doc.save(name); toast('PDF gerado: ' + name); }
+  } catch (e) { console.error(e); toast('Erro ao gerar PDF: ' + e.message, 'err'); }
+}
+$('#btnPDF').onclick = () => exportPDF('save');
+$('#btnPDFShare').onclick = () => exportPDF('share');
+
+// ---------- Inicialização ----------
+if (curId && !cur()) curId = null;
+go(fichas.length ? (LS.get(K.view, 'fichas') === 'perfil' ? 'fichas' : LS.get(K.view, 'fichas')) : (profile.nome ? 'fichas' : 'perfil'));
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
