@@ -34,8 +34,8 @@ jobs:
         run: npx cap add android
 
       - name: Ícones do app
-        continue-on-error: true
-        run: npx capacitor-assets generate --android --assetPath resources --iconBackgroundColor '#0f766e' --iconBackgroundColorDark '#0f766e' --splashBackgroundColor '#0f766e' --splashBackgroundColorDark '#0f766e'
+        run: npx capacitor-assets generate --android --assetPath resources
+
 
       - name: Sincronizar
         run: npx cap sync android
