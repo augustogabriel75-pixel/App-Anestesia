@@ -47,7 +47,8 @@ jobs:
 
       - name: Aviso
         if: steps.pages.outcome != 'success'
-        run: echo "::warning::GitHub Pages não está ativado. Ative em Settings → Pages → Source: GitHub Actions e rode este workflow de novo."
+        run: |
+          echo "::warning::GitHub Pages não está ativado. Ative em Settings → Pages → Source = GitHub Actions e rode este workflow de novo."
 
       - uses: actions/upload-pages-artifact@v3
         if: steps.pages.outcome == 'success'
