@@ -25,5 +25,15 @@ if (/cdn\.tailwindcss|cdnjs/.test(html)) throw new Error('ainda há referências
 writeFileSync(`${out}/index.html`, html);
 
 cpSync('icons', `${out}/icons`, { recursive: true });
+cpSync('js', `${out}/js`, { recursive: true });
+
+// Variáveis de ambiente do build (CI) sobrescrevem a configuração do Supabase.
+const cfgPath = `${out}/js/config.js`;
+let cfg = readFileSync(cfgPath, 'utf8');
+for (const [env, key] of [['VA_SUPABASE_URL', 'SUPABASE_URL'], ['VA_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY'], ['VA_CHECKOUT_SITE_URL', 'CHECKOUT_SITE_URL']]) {
+  const v = process.env[env];
+  if (v) cfg = cfg.replace(new RegExp(`${key}: '[^']*'`), `${key}: ${JSON.stringify(v)}`);
+}
+writeFileSync(cfgPath, cfg);
 cpSync('manifest.webmanifest', `${out}/manifest.webmanifest`);
 console.log('www/ gerado');

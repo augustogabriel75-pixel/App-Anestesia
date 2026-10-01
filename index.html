@@ -49,6 +49,8 @@
   .due { animation: pulse-due 1s ease-in-out infinite; }
   @keyframes pulse-due { 0%,100% { background:#fef2f2; } 50% { background:#fecaca; } }
   .bad { color:#dc2626; font-weight:700; }
+  body.auth-mode .app-only { display:none !important; }
+  body.auth-mode { padding-bottom: env(safe-area-inset-bottom); }
   #sigPad { touch-action:none; }
 </style>
 </head>
@@ -63,13 +65,50 @@
       <div id="hdrSub" class="text-xs text-brand-100 truncate">Nenhuma ficha aberta</div>
     </div>
     <div id="hdrTimer" class="hidden font-mono text-lg font-bold bg-brand-900/60 rounded-lg px-2 py-1"></div>
-    <button id="btnPerfil" class="p-2 rounded-lg hover:bg-brand-700" aria-label="Perfil profissional" title="Perfil profissional">
+    <button id="syncBadge" class="app-only p-2 rounded-lg hover:bg-brand-700 relative" aria-label="Sincronização" title="Sincronização">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+      <span id="syncDot" class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 ring-2 ring-brand-800"></span>
+    </button>
+    <button id="btnPerfil" class="app-only p-2 rounded-lg hover:bg-brand-700" aria-label="Perfil profissional" title="Perfil profissional">
       <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
     </button>
   </div>
 </header>
 
 <main class="max-w-4xl mx-auto px-4 py-4 space-y-4">
+
+<!-- ============ LOGIN / CADASTRO ============ -->
+<section id="v-auth" class="view">
+  <div class="max-w-md mx-auto space-y-4 pt-2">
+    <div class="text-center space-y-2">
+      <img src="icons/icon.svg" class="w-20 h-20 mx-auto rounded-2xl shadow" alt="">
+      <h1 class="text-2xl font-bold text-brand-900">VetAnest Monitor</h1>
+      <p class="text-sm text-slate-600">Ficha anestésica veterinária digital, offline e na nuvem.</p>
+    </div>
+    <div id="demoNote" class="hidden rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3">
+      <b>Modo demonstração:</b> servidor não configurado. A conta, a assinatura e a “nuvem” são simuladas neste aparelho.
+    </div>
+    <div class="card space-y-4">
+      <div class="seg" id="authTabs"><button data-t="login" class="on">Entrar</button><button data-t="signup">Criar conta</button></div>
+      <form id="authForm" class="space-y-3" novalidate>
+        <div class="signup-only hidden space-y-3">
+          <div><label class="lbl" for="auNome">Nome profissional</label><input id="auNome" class="inp" autocomplete="name" placeholder="M.V. Nome Sobrenome"></div>
+          <div class="grid grid-cols-3 gap-3">
+            <div class="col-span-2"><label class="lbl" for="auCrmv">CRMV</label><input id="auCrmv" class="inp" inputmode="numeric"></div>
+            <div><label class="lbl" for="auUf">UF</label><select id="auUf" class="inp"></select></div>
+          </div>
+        </div>
+        <div><label class="lbl" for="auEmail">E-mail</label><input id="auEmail" class="inp" type="email" autocomplete="email" inputmode="email"></div>
+        <div><label class="lbl" for="auPass">Senha</label><input id="auPass" class="inp" type="password" autocomplete="current-password" minlength="6"></div>
+        <div class="signup-only hidden"><label class="lbl" for="auPass2">Confirmar senha</label><input id="auPass2" class="inp" type="password" autocomplete="new-password"></div>
+        <p id="authMsg" class="hidden text-sm rounded-lg px-3 py-2"></p>
+        <button id="authSubmit" class="btn-primary w-full py-4 text-lg" type="submit">Entrar</button>
+        <button id="authForgot" class="login-only w-full text-sm text-brand-700 font-semibold py-2" type="button">Esqueci minha senha</button>
+      </form>
+      <p class="signup-only hidden text-xs text-slate-500 text-center">Ao criar a conta você ganha <b id="trialDays">14</b> dias de teste grátis do plano Pro.</p>
+    </div>
+  </div>
+</section>
 
 <!-- ============ FICHAS ============ -->
 <section id="v-fichas" class="view space-y-4">
@@ -83,6 +122,7 @@
       <label class="btn-ghost text-sm cursor-pointer">Restaurar<input id="inpRestore" type="file" accept="application/json,.json" class="hidden"></label>
     </div>
   </div>
+  <div id="planBanner" class="hidden"></div>
   <div id="profileWarn" class="hidden card border-amber-300 bg-amber-50 text-amber-900 text-sm">
     Complete seu <button class="underline font-semibold" data-go="perfil">perfil profissional</button> (nome, CRMV e logotipo) para que apareçam automaticamente no cabeçalho do PDF.
   </div>
@@ -190,6 +230,7 @@
           <div class="text-xs font-semibold text-slate-500 uppercase">Tempo de anestesia</div>
           <div id="monElapsed" class="font-mono text-4xl font-bold text-brand-800">00:00:00</div>
           <div id="monStart" class="text-xs text-slate-500">Anestesia não iniciada</div>
+          <div id="awakeInfo" class="hidden text-xs font-semibold mt-1"></div>
         </div>
         <div class="flex gap-2">
           <button id="btnIniciar" class="btn-primary px-5">▶ Iniciar anestesia</button>
@@ -281,9 +322,29 @@
 
 <!-- ============ PERFIL ============ -->
 <section id="v-perfil" class="view space-y-4">
+  <div class="card space-y-3" id="contaCard">
+    <div class="card-title">🔐 Conta e assinatura</div>
+    <div class="flex items-start gap-3 flex-wrap">
+      <div class="flex-1 min-w-[12rem]">
+        <div id="contaEmail" class="font-semibold break-all"></div>
+        <div id="contaPlano" class="text-sm text-slate-600 mt-1"></div>
+      </div>
+      <span id="contaBadge" class="text-xs font-bold rounded-full px-3 py-1"></span>
+    </div>
+    <div id="contaSync" class="text-xs text-slate-500"></div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      <button id="btnAssinar" class="btn-primary col-span-2 sm:col-span-1">⭐ Assinar Pro</button>
+      <button id="btnSyncNow" class="btn-soft">↻ Sincronizar</button>
+      <button id="btnLogout" class="btn-ghost">Sair da conta</button>
+    </div>
+    <div id="demoTools" class="hidden rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 space-y-2">
+      <div><b>Modo demonstração.</b> Ferramentas de teste:</div>
+      <button id="btnDemoExpire" class="btn-ghost text-xs py-2">Simular fim do período de teste</button>
+    </div>
+  </div>
   <div class="card">
     <div class="card-title">👨‍⚕️ Perfil profissional</div>
-    <p class="text-xs text-slate-500 mb-3">Preenchido uma única vez e salvo neste dispositivo. Usado automaticamente em todas as novas fichas.</p>
+    <p class="text-xs text-slate-500 mb-3">Preenchido uma única vez e salvo na sua conta (disponível em todos os seus aparelhos). Usado automaticamente em todas as novas fichas.</p>
     <div class="grid sm:grid-cols-3 gap-3">
       <div class="sm:col-span-3"><label class="lbl">Nome do(a) anestesista</label><input class="inp" data-p="nome" placeholder="M.V. Nome Sobrenome"></div>
       <div class="sm:col-span-2"><label class="lbl">CRMV (número)</label><input class="inp" data-p="crmv" inputmode="numeric"></div>
@@ -293,7 +354,7 @@
     </div>
   </div>
   <div class="card">
-    <div class="card-title">🖼️ Logotipo (cabeçalho do PDF)</div>
+    <div class="card-title">🖼️ Logotipo (cabeçalho do PDF) <span class="pro-tag"></span></div>
     <div class="flex items-center gap-4 flex-wrap">
       <div class="w-40 h-24 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden"><img id="logoPrev" class="max-w-full max-h-full hidden" alt="Logotipo"><span id="logoNone" class="text-xs text-slate-400">sem logotipo</span></div>
       <div class="flex gap-2 flex-wrap">
@@ -303,7 +364,7 @@
     </div>
   </div>
   <div class="card">
-    <div class="card-title">✍️ Assinatura digital</div>
+    <div class="card-title">✍️ Assinatura digital <span class="pro-tag"></span></div>
     <div class="flex items-center gap-4 flex-wrap">
       <div class="w-56 h-24 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center bg-white overflow-hidden"><img id="sigPrev" class="max-w-full max-h-full hidden" alt="Assinatura"><span id="sigNone" class="text-xs text-slate-400">sem assinatura</span></div>
       <div class="flex gap-2 flex-wrap">
@@ -314,7 +375,7 @@
     </div>
   </div>
   <div class="card text-xs text-slate-500 space-y-1">
-    <p><b>Armazenamento:</b> todos os dados ficam apenas neste navegador (localStorage). Faça backups periódicos em “Fichas → Backup”.</p>
+    <p><b>Armazenamento:</b> os dados são gravados primeiro neste aparelho (IndexedDB), funcionando sem internet, e sincronizados com a nuvem da sua conta quando houver conexão.</p>
     <p id="storageInfo"></p>
   </div>
   <button class="btn-primary w-full py-4" data-go="fichas">Concluir</button>
@@ -329,7 +390,7 @@
 </main>
 
 <!-- ============ BOTTOM NAV ============ -->
-<nav class="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 shadow-[0_-2px_8px_rgba(0,0,0,.04)]" style="padding-bottom:env(safe-area-inset-bottom)">
+<nav id="bottomNav" class="app-only fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 shadow-[0_-2px_8px_rgba(0,0,0,.04)]" style="padding-bottom:env(safe-area-inset-bottom)">
   <div class="max-w-4xl mx-auto flex">
     <button class="nav-btn" data-go="fichas"><span class="text-xl">📋</span>Fichas</button>
     <button class="nav-btn" data-go="paciente"><span class="text-xl">🐾</span>Paciente</button>
@@ -340,7 +401,7 @@
 </nav>
 
 <!-- ============ MODAL REGISTRO ============ -->
-<div id="regModal" class="hidden fixed inset-0 z-40 bg-slate-900/50 flex items-end sm:items-center justify-center">
+<div id="regModal" class="overlay hidden fixed inset-0 z-40 bg-slate-900/50 flex items-end sm:items-center justify-center">
   <div class="bg-slate-50 w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl max-h-[95vh] flex flex-col">
     <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white rounded-t-2xl">
       <div class="flex-1 font-bold text-lg" id="regTitle">Novo registro</div>
@@ -387,7 +448,7 @@
 </div>
 
 <!-- ============ MODAL ASSINATURA ============ -->
-<div id="sigModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+<div id="sigModal" class="overlay hidden fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
   <div class="bg-white rounded-2xl w-full max-w-xl p-4 space-y-3">
     <div class="font-bold">Desenhe sua assinatura</div>
     <canvas id="sigPad" class="w-full h-48 border-2 border-slate-300 rounded-xl bg-white"></canvas>
@@ -400,11 +461,60 @@
 </div>
 
 <!-- ============ TOAST / BANNER ============ -->
-<div id="dueBanner" class="hidden fixed top-20 inset-x-4 z-40 max-w-md mx-auto rounded-2xl bg-red-600 text-white shadow-xl p-4 flex items-center gap-3">
+<div id="dueBanner" class="overlay hidden fixed top-20 inset-x-4 z-40 max-w-md mx-auto rounded-2xl bg-red-600 text-white shadow-xl p-4 flex items-center gap-3">
   <span class="text-3xl">⏰</span>
   <div class="flex-1"><div class="font-bold">Hora de registrar parâmetros</div><div class="text-sm text-red-100" id="dueText"></div></div>
   <button class="btn bg-white text-red-700 px-3 py-2" id="dueGo">Registrar</button>
 </div>
+<!-- ============ MODAL PAYWALL ============ -->
+<div id="paywallModal" class="overlay hidden fixed inset-0 z-50 bg-slate-900/60 flex items-end sm:items-center justify-center">
+  <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4" style="padding-bottom:calc(1.25rem + env(safe-area-inset-bottom))">
+    <div class="text-4xl text-center">⭐</div>
+    <h2 class="text-xl font-bold text-center" id="pwTitle">Recurso do plano Pro</h2>
+    <p class="text-sm text-slate-600 text-center" id="pwText"></p>
+    <div class="grid grid-cols-2 gap-2">
+      <button class="btn-ghost" data-close>Agora não</button>
+      <button class="btn-primary" id="pwGo">Ver planos</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL CHECKOUT ============ -->
+<div id="payModal" class="overlay hidden fixed inset-0 z-50 bg-slate-900/60 flex items-end sm:items-center justify-center">
+  <div class="bg-slate-50 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[95vh] flex flex-col">
+    <div class="flex items-center gap-3 px-4 py-3 bg-brand-800 text-white rounded-t-2xl">
+      <div class="flex-1"><div class="font-bold text-lg">Assine o VetAnest Pro</div><div class="text-xs text-brand-100">Pagamento seguro via Pix ou cartão</div></div>
+      <button class="p-2 text-2xl leading-none" data-close aria-label="Fechar">×</button>
+    </div>
+    <div class="overflow-y-auto p-4 space-y-4">
+      <ul class="text-sm text-slate-700 space-y-1">
+        <li>✅ Fichas ilimitadas e sincronização na nuvem</li>
+        <li>✅ PDF profissional com logotipo e assinatura digital</li>
+        <li>✅ Acesso em vários aparelhos (celular, tablet, computador)</li>
+      </ul>
+      <div id="payPlans" class="grid grid-cols-2 gap-3"></div>
+      <div>
+        <div class="lbl">Forma de pagamento</div>
+        <div class="seg" id="payMethods"><button data-m="pix" class="on">⚡ Pix</button><button data-m="cartao">💳 Cartão</button></div>
+      </div>
+      <div id="payStep" class="space-y-3"></div>
+      <p class="text-[11px] text-slate-400 text-center">Os dados do cartão são digitados apenas no ambiente seguro do processador de pagamentos; o VetAnest não armazena dados de cartão.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL SAIR ============ -->
+<div id="exitModal" class="overlay hidden fixed inset-0 z-[60] bg-slate-900/60 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
+    <h2 class="text-lg font-bold">Sair do VetAnest?</h2>
+    <p id="exitWarn" class="hidden text-sm rounded-lg bg-red-50 border border-red-200 text-red-800 p-3">Há uma anestesia em andamento. Os dados ficam salvos, mas os alarmes de registro não tocarão com o app fechado.</p>
+    <div class="grid grid-cols-2 gap-2">
+      <button class="btn-ghost" data-close>Cancelar</button>
+      <button class="btn-danger" id="exitConfirm">Sair</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="hidden fixed bottom-24 inset-x-4 z-50 max-w-md mx-auto rounded-xl px-4 py-3 text-white text-sm font-medium shadow-lg text-center"></div>
 
 <datalist id="dlRacas"><option>SRD</option><option>Labrador Retriever</option><option>Golden Retriever</option><option>Shih Tzu</option><option>Yorkshire Terrier</option><option>Poodle</option><option>Lhasa Apso</option><option>Buldogue Francês</option><option>Pinscher</option><option>Spitz Alemão</option><option>Pastor Alemão</option><option>Border Collie</option><option>Dachshund</option><option>Pug</option><option>Rottweiler</option><option>Persa</option><option>Siamês</option><option>Maine Coon</option><option>Quarto de Milha</option><option>Mangalarga Marchador</option><option>Puro Sangue Inglês</option><option>Crioulo</option></datalist>
@@ -412,6 +522,10 @@
 <datalist id="dlFluidos"><option>Ringer lactato</option><option>NaCl 0,9%</option><option>Ringer simples</option><option>Plasma-Lyte</option><option>Glicose 5%</option><option>NaCl 0,9% + Glicose 2,5%</option><option>Coloide</option></datalist>
 <datalist id="dlFarmacos"></datalist>
 
+<script src="js/config.js"></script>
+<script src="js/store.js"></script>
+<script src="js/backend.js"></script>
+<script src="js/native.js"></script>
 <script>
 'use strict';
 /* =====================================================================
@@ -438,7 +552,7 @@ const LS = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { toast('Não foi possível salvar: armazenamento cheio?', 'err'); return false; } },
 };
-const K = { profile: 'vetanest.profile', fichas: 'vetanest.fichas', cur: 'vetanest.current', view: 'vetanest.view' };
+const K = { view: 'vetanest.view', cur: 'vetanest.cur.' };
 
 let toastT;
 function toast(msg, type = 'ok') {
@@ -499,23 +613,67 @@ const FIELDS = [
 const RSEGS = ['plano', 'palpebral', 'corneano', 'globo', 'agente', 'modo'];
 
 // ---------- Estado ----------
-let profile = LS.get(K.profile, {});
-let fichas = LS.get(K.fichas, []);
-let curId = LS.get(K.cur, null);
+// Dados do usuário logado (carregados do Store por conta: chave "<tipo>:<userId>").
+let user = null;          // { id, email, meta }
+let account = null;       // { profile, subscription, fetchedAt } – cache da última verificação no servidor
+let profile = {};
+let fichas = [];          // inclui "tombstones" (deleted: true) pendentes de sincronização
+let curId = null;
 let view = 'fichas';
-const cur = () => fichas.find(f => f.id === curId) || null;
+const ukey = k => `${k}:${user ? user.id : 'anon'}`;
+const live = () => fichas.filter(f => !f.deleted);
+const cur = () => fichas.find(f => f.id === curId && !f.deleted) || null;
 
 let saveT;
+function persistFichas() { if (!user) return; Store.set(ukey('fichas'), fichas); LS.set(K.cur + user.id, curId); }
 function save(immediate) {
-  const f = cur(); if (f) f.updatedAt = Date.now();
+  if (!user) return;
+  const f = cur();
+  if (f) { f.updatedAt = Date.now(); Store.journal.write(user.id, f); }   // gravação síncrona de segurança
   clearTimeout(saveT);
-  const run = () => { LS.set(K.fichas, fichas); LS.set(K.cur, curId); };
-  immediate ? run() : (saveT = setTimeout(run, 250));
+  immediate ? persistFichas() : (saveT = setTimeout(persistFichas, 250));
+  if (window.Sync) Sync.schedule();
 }
-window.addEventListener('pagehide', () => save(true));
-document.addEventListener('visibilitychange', () => { if (document.hidden) save(true); });
+function saveProfile() {
+  if (!user) return;
+  profile.updatedAt = Date.now();
+  Store.set(ukey('profile'), profile);
+  if (window.Sync) Sync.schedule();
+}
+window.addEventListener('pagehide', () => { if (user) { clearTimeout(saveT); persistFichas(); } });
+document.addEventListener('visibilitychange', () => { if (document.hidden && user) { clearTimeout(saveT); persistFichas(); } });
+
+async function loadUserData() {
+  fichas = await Store.get(ukey('fichas'), []);
+  profile = (await Store.get(ukey('profile'), null)) || {};
+  account = await Store.get(ukey('account'), null);
+  curId = LS.get(K.cur + user.id, null);
+  // Recupera a ficha do journal se ela for mais nova que a cópia do IndexedDB.
+  const j = Store.journal.read();
+  if (j && j.userId === user.id && j.ficha) {
+    const i = fichas.findIndex(f => f.id === j.ficha.id);
+    if (i < 0) fichas.unshift(j.ficha); else if ((j.ficha.updatedAt || 0) > (fichas[i].updatedAt || 0)) fichas[i] = j.ficha;
+  }
+  // Migra dados da versão sem conta (v1, localStorage) para esta conta.
+  const legacyF = LS.get('vetanest.fichas', null), legacyP = LS.get('vetanest.profile', null);
+  if (Array.isArray(legacyF) && legacyF.length) {
+    const ids = new Set(fichas.map(f => f.id));
+    legacyF.forEach(f => { if (f && f.id && !ids.has(f.id)) { f.updatedAt = Date.now(); fichas.push(f); } });
+    toast(`${legacyF.length} ficha(s) deste aparelho vinculadas à sua conta`);
+  }
+  if (legacyP && !profile.nome) profile = { ...legacyP, updatedAt: Date.now() };
+  ['vetanest.fichas', 'vetanest.profile', 'vetanest.current'].forEach(k => { try { localStorage.removeItem(k); } catch {} });
+  // Dados informados no cadastro preenchem o perfil profissional.
+  const m = user.meta || {};
+  let changed = false;
+  ['nome', 'crmv', 'uf'].forEach(k => { if (!profile[k] && m[k]) { profile[k] = m[k]; changed = true; } });
+  if (changed) profile.updatedAt = Date.now();
+  await Store.set(ukey('fichas'), fichas);
+  await Store.set(ukey('profile'), profile);
+}
 
 function novaFicha() {
+  if (!canCreateFicha()) return;
   const f = {
     id: uid(), createdAt: Date.now(), updatedAt: Date.now(), finalizada: false,
     clinica: profile.clinica || '',
@@ -532,9 +690,13 @@ function novaFicha() {
   go('paciente'); toast('Nova ficha criada');
 }
 
-// ---------- Navegação ----------
-function go(v) {
-  view = v; LS.set(K.view, v);
+// ---------- Navegação (com pilha para o botão Voltar) ----------
+let navStack = [];
+function go(v, push = true) {
+  if (push && view && view !== v && view !== 'auth' && v !== 'auth') { navStack.push(view); if (navStack.length > 30) navStack.shift(); }
+  if (v === 'auth') navStack = [];
+  document.body.classList.toggle('auth-mode', v === 'auth');
+  view = v; if (v !== 'auth') LS.set(K.view, v);
   $$('.view').forEach(s => s.classList.toggle('active', s.id === 'v-' + v));
   $$('.nav-btn').forEach(b => b.classList.toggle('on', b.dataset.go === v));
   const needs = ['paciente', 'farmacos', 'monitor', 'resumo'].includes(v);
@@ -566,10 +728,10 @@ document.addEventListener('input', e => {
     setPath(f, el.dataset.f, el.type === 'checkbox' ? el.checked : el.value);
     save(); onFieldChange(el.dataset.f);
   } else if (el.dataset.p) {
-    profile[el.dataset.p] = el.value; LS.set(K.profile, profile);
+    profile[el.dataset.p] = el.value; saveProfile();
   }
 });
-document.addEventListener('change', e => { if (e.target.dataset.p) { profile[e.target.dataset.p] = e.target.value; LS.set(K.profile, profile); } });
+document.addEventListener('change', e => { if (e.target.dataset.p && profile[e.target.dataset.p] !== e.target.value) { profile[e.target.dataset.p] = e.target.value; saveProfile(); } });
 
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-seg] > button'); if (b) {
@@ -608,7 +770,9 @@ function onFieldChange(path) {
 
 // ---------- Renderização geral ----------
 function render() {
+  if (view === 'auth') { renderHeader(); return; }
   fillForms(); renderHeader();
+  if (window.renderAccountUI) renderAccountUI();
   if (view === 'fichas') renderFichas();
   if (view === 'paciente') { const f = cur(); if (f) $('#especieOutro').classList.toggle('hidden', f.paciente.especie !== 'Outro'); }
   if (view === 'farmacos') { renderFarmacos(); renderFluidoRate(); }
@@ -631,11 +795,11 @@ $('#busca').addEventListener('input', renderFichas);
 function renderFichas() {
   $('#profileWarn').classList.toggle('hidden', !!(profile.nome && profile.crmv));
   const q = $('#busca').value.trim().toLowerCase();
-  const list = fichas.filter(f => !q || [f.paciente.nome, f.tutor.nome, f.proc.nome, f.clinica].join(' ').toLowerCase().includes(q))
+  const list = live().filter(f => !q || [f.paciente.nome, f.tutor.nome, f.proc.nome, f.clinica].join(' ').toLowerCase().includes(q))
     .sort((a, b) => b.updatedAt - a.updatedAt);
-  if (!list.length) { $('#listaFichas').innerHTML = `<div class="card text-center text-slate-500 py-10">${fichas.length ? 'Nenhuma ficha encontrada.' : 'Nenhuma ficha ainda. Toque em <b>Nova ficha anestésica</b> para começar.'}</div>`; return; }
+  if (!list.length) { $('#listaFichas').innerHTML = `<div class="card text-center text-slate-500 py-10">${live().length ? 'Nenhuma ficha encontrada.' : 'Nenhuma ficha ainda. Toque em <b>Nova ficha anestésica</b> para começar.'}</div>`; return; }
   $('#listaFichas').innerHTML = list.map(f => {
-    const p = f.paciente, n = f.registros.filter(r => !r.evento).length, active = f.id === curId;
+    const p = f.paciente, n = f.registros.filter(r => !r.evento).length, active = f.id === curId, pend = (f.updatedAt || 0) > (f.syncedAt || 0);
     const status = f.finalizada ? '<span class="text-xs rounded-full bg-slate-200 text-slate-700 px-2 py-0.5">Finalizada</span>'
       : f.monitor.inicio && !f.monitor.fim ? '<span class="text-xs rounded-full bg-red-100 text-red-700 px-2 py-0.5 font-bold">● Em anestesia</span>'
       : '<span class="text-xs rounded-full bg-brand-100 text-brand-800 px-2 py-0.5">Aberta</span>';
@@ -646,7 +810,7 @@ function renderFichas() {
           <div class="flex items-center gap-2 flex-wrap"><b class="truncate">${esc(p.nome || 'Sem nome')}</b>${status}</div>
           <div class="text-sm text-slate-600 truncate">${esc([especieTxt(p), p.raca, p.peso && fmt(p.peso) + ' kg'].filter(Boolean).join(' · '))}</div>
           <div class="text-sm text-slate-600 truncate">${esc(f.proc.nome || 'Procedimento não informado')}</div>
-          <div class="text-xs text-slate-400">${dataBR(f.proc.data)} · Tutor: ${esc(f.tutor.nome || '—')} · ${n} registro(s)</div>
+          <div class="text-xs text-slate-400">${dataBR(f.proc.data)} · Tutor: ${esc(f.tutor.nome || '—')} · ${n} registro(s)${pend ? ' · <span class="text-amber-600 font-semibold">não sincronizada</span>' : ''}</div>
         </div>
       </div>
       <div class="grid grid-cols-4 gap-2 mt-3">
@@ -663,13 +827,13 @@ $('#listaFichas').addEventListener('click', e => {
   if (d) {
     const f = fichas.find(x => x.id === d.dataset.del);
     if (!confirm(`Excluir definitivamente a ficha de "${f.paciente.nome || 'Sem nome'}"?`)) return;
-    fichas = fichas.filter(x => x.id !== f.id); if (curId === f.id) curId = null; save(true); render();
+    f.deleted = true; f.updatedAt = Date.now(); if (curId === f.id) curId = null; save(true); render();
   }
 });
 
 // Backup / restauração
 // ---------- Arquivos: download no navegador, salvar + compartilhar no app Android (Capacitor) ----------
-const isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const isNative = () => Native.isNative();
 const blobToB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
 async function nativeShareFile(blob, name) {
   const { Filesystem, Share } = window.Capacitor.Plugins;
@@ -682,7 +846,7 @@ async function downloadFile(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 $('#btnBackup').onclick = async () => {
-  const blob = new Blob([JSON.stringify({ app: 'vetanest', v: 1, exportedAt: new Date().toISOString(), profile, fichas }, null, 1)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ app: 'vetanest', v: 2, exportedAt: new Date().toISOString(), profile, fichas: live() }, null, 1)], { type: 'application/json' });
   try { await downloadFile(blob, `vetanest-backup-${todayISO()}.json`); } catch (e) { toast('Erro ao salvar backup: ' + e.message, 'err'); }
 };
 $('#inpRestore').onchange = async e => {
@@ -691,8 +855,8 @@ $('#inpRestore').onchange = async e => {
     const data = JSON.parse(await file.text());
     if (!Array.isArray(data.fichas)) throw new Error();
     const ids = new Set(fichas.map(f => f.id)); let add = 0;
-    data.fichas.forEach(f => { if (f && f.id && !ids.has(f.id)) { fichas.push(f); add++; } });
-    if (data.profile && !profile.nome && confirm('Restaurar também o perfil profissional do backup?')) { profile = data.profile; LS.set(K.profile, profile); }
+    data.fichas.forEach(f => { if (f && f.id && !f.deleted && !ids.has(f.id)) { f.updatedAt = Date.now(); delete f.syncedAt; fichas.push(f); add++; } });
+    if (data.profile && confirm('Restaurar também o perfil profissional do backup?')) { profile = { ...data.profile }; saveProfile(); }
     save(true); render(); toast(`${add} ficha(s) importada(s)`);
   } catch { toast('Arquivo de backup inválido', 'err'); }
 };
@@ -783,16 +947,25 @@ function renderFluidoRate() {
 }
 
 // ---------- Monitoração ----------
-let alertedFor = null, wakeLock = null;
+let alertedFor = null;
 const paramRegs = f => f.registros.filter(r => !r.evento);
 
-async function keepAwake(on) {
-  try {
-    if (on && 'wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => wakeLock = null); }
-    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
-  } catch {}
+// Tela sempre acesa enquanto houver anestesia em andamento (nativo: FLAG_KEEP_SCREEN_ON; web: Wake Lock).
+const anestesiaEmAndamento = () => live().some(f => f.monitor && f.monitor.inicio && !f.monitor.fim);
+function keepAwake(on) { if (on) { if (!Native.Awake.active()) Native.Awake.enable(); } else if (!anestesiaEmAndamento()) Native.Awake.disable(); }
+const AWAKE_TXT = {
+  native: ['text-brand-700', '🔆 Tela mantida acesa durante a anestesia'],
+  web: ['text-brand-700', '🔆 Tela mantida acesa durante a anestesia'],
+  blocked: ['text-amber-700', '⚠️ O navegador não permitiu manter a tela acesa – aumente o tempo de bloqueio do aparelho'],
+  unsupported: ['text-amber-700', '⚠️ Este navegador não mantém a tela acesa – aumente o tempo de bloqueio do aparelho'],
+};
+function renderAwake() {
+  const el = $('#awakeInfo'), t = AWAKE_TXT[Native.Awake.mode()], f = cur();
+  const show = !!(t && f && f.monitor.inicio && !f.monitor.fim);
+  el.classList.toggle('hidden', !show); if (!show) return;
+  el.className = 'text-xs font-semibold mt-1 ' + t[0]; el.textContent = t[1];
 }
-document.addEventListener('visibilitychange', () => { const f = cur(); if (!document.hidden && f && f.monitor.inicio && !f.monitor.fim) keepAwake(true); });
+Native.Awake.onChange(renderAwake);
 
 $('#btnIniciar').onclick = () => {
   const f = cur(); const now = new Date();
@@ -863,6 +1036,7 @@ function renderMonitor() {
   $('#btnEncerrar').classList.toggle('hidden', !running);
   $('#monStart').textContent = f.monitor.inicio ? `Início ${hhmm(new Date(f.monitor.inicio))}${f.monitor.fim ? ' · Término ' + hhmm(new Date(f.monitor.fim)) : ''}` : 'Anestesia não iniciada';
   if (running) keepAwake(true);
+  renderAwake();
   const esp = f.paciente.especie;
   // últimos valores
   const regs = paramRegs(f);
@@ -954,7 +1128,12 @@ function openReg(id) {
   $('#regModal').classList.remove('hidden'); document.body.style.overflow = 'hidden';
 }
 function guessAgente(f) { if (f.farmacos.some(d => /sevo/i.test(d.nome))) return 'Sevo'; if (f.farmacos.some(d => /iso/i.test(d.nome))) return 'Iso'; return ''; }
-function closeModal(m) { m.classList.add('hidden'); document.body.style.overflow = ''; }
+function closeModal(m) {
+  if (!m || m.classList.contains('hidden')) return;
+  m.classList.add('hidden');
+  if (!$$('.overlay:not(.hidden)').some(o => o.id !== 'dueBanner')) document.body.style.overflow = '';
+  if (typeof m._onClose === 'function') m._onClose();
+}
 $$('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(b.closest('.fixed'))));
 $('#btnRegistrar').onclick = () => openReg();
 $('#regAgora').onclick = () => $('#regHora').value = hhmm(new Date());
@@ -1037,8 +1216,8 @@ $('#selUF').innerHTML = '<option value="">UF</option>' + UFS.map(u => `<option>$
 function renderPerfil() {
   const show = (img, none, src) => { $(img).src = src || ''; $(img).classList.toggle('hidden', !src); $(none).classList.toggle('hidden', !!src); };
   show('#logoPrev', '#logoNone', profile.logo); show('#sigPrev', '#sigNone', profile.assinatura);
-  let used = 0; try { for (const k in localStorage) if (k.startsWith('vetanest')) used += (localStorage.getItem(k) || '').length; } catch {}
-  $('#storageInfo').textContent = `Uso atual: ~${(used / 1024).toFixed(0)} KB · ${fichas.length} ficha(s) salva(s).`;
+  let used = 0; try { used = JSON.stringify(fichas).length + JSON.stringify(profile).length; } catch {}
+  $('#storageInfo').textContent = `Uso atual: ~${(used / 1024).toFixed(0)} KB · ${live().length} ficha(s) salva(s) · ${Store.usingIDB() ? 'IndexedDB' : 'localStorage'}.`;
 }
 function loadImage(file, maxW, maxH, type = 'image/png') {
   return new Promise((res, rej) => {
@@ -1052,10 +1231,10 @@ function loadImage(file, maxW, maxH, type = 'image/png') {
     fr.onerror = rej; fr.readAsDataURL(file);
   });
 }
-$('#inpLogo').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { profile.logo = await loadImage(f, 600, 300); LS.set(K.profile, profile); renderPerfil(); toast('Logotipo salvo'); } catch { toast('Imagem inválida', 'err'); } };
-$('#inpSig').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { profile.assinatura = await loadImage(f, 600, 240); LS.set(K.profile, profile); renderPerfil(); toast('Assinatura salva'); } catch { toast('Imagem inválida', 'err'); } };
-$('#rmLogo').onclick = () => { delete profile.logo; LS.set(K.profile, profile); renderPerfil(); };
-$('#rmSig').onclick = () => { delete profile.assinatura; LS.set(K.profile, profile); renderPerfil(); };
+$('#inpLogo').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { profile.logo = await loadImage(f, 600, 300); saveProfile(); renderPerfil(); toast('Logotipo salvo'); } catch { toast('Imagem inválida', 'err'); } };
+$('#inpSig').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { profile.assinatura = await loadImage(f, 600, 240); saveProfile(); renderPerfil(); toast('Assinatura salva'); } catch { toast('Imagem inválida', 'err'); } };
+$('#rmLogo').onclick = () => { delete profile.logo; saveProfile(); renderPerfil(); };
+$('#rmSig').onclick = () => { delete profile.assinatura; saveProfile(); renderPerfil(); };
 
 // Assinatura desenhada
 const pad = $('#sigPad'); let drawing = false, drew = false;
@@ -1074,7 +1253,7 @@ $('#sigSalvar').onclick = () => {
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 0) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   const m = 8, cw = Math.min(w, x1 - x0 + 2 * m), ch = Math.min(h, y1 - y0 + 2 * m), out = document.createElement('canvas');
   out.width = cw; out.height = ch; out.getContext('2d').drawImage(pad, Math.max(0, x0 - m), Math.max(0, y0 - m), cw, ch, 0, 0, cw, ch);
-  profile.assinatura = out.toDataURL('image/png'); LS.set(K.profile, profile); closeModal($('#sigModal')); renderPerfil(); toast('Assinatura salva');
+  profile.assinatura = out.toDataURL('image/png'); saveProfile(); closeModal($('#sigModal')); renderPerfil(); toast('Assinatura salva');
 };
 
 // ---------- PDF ----------
@@ -1094,7 +1273,8 @@ function buildPDF(f, opts = {}) {
 
   // --- Cabeçalho
   let x = M, y = M;
-  if (profile.logo) {
+  const pro = isPro();
+  if (profile.logo && pro) {
     try { const ip = doc.getImageProperties(profile.logo); const h = 18, w = Math.min(45, ip.width / ip.height * h); const hh = w / (ip.width / ip.height);
       doc.addImage(profile.logo, M, y + (18 - hh) / 2, w, hh); x = M + w + 4; } catch {}
   }
@@ -1201,7 +1381,7 @@ function buildPDF(f, opts = {}) {
   doc.rect(M, y, 70, sh - 2); doc.setLineDashPattern([], 0);
   doc.setFontSize(7); doc.setTextColor(...GRAY); doc.text('Carimbo', M + 35, y + sh - 4, { align: 'center' });
   const sx = W - M - 95, lineY = y + sh - 9;
-  if (profile.assinatura) { try { const ip = doc.getImageProperties(profile.assinatura); const hh = 16, ww = Math.min(80, ip.width / ip.height * hh); doc.addImage(profile.assinatura, sx + (95 - ww) / 2, lineY - hh - 0.5, ww, ww / (ip.width / ip.height)); } catch {} }
+  if (profile.assinatura && pro) { try { const ip = doc.getImageProperties(profile.assinatura); const hh = 16, ww = Math.min(80, ip.width / ip.height * hh); doc.addImage(profile.assinatura, sx + (95 - ww) / 2, lineY - hh - 0.5, ww, ww / (ip.width / ip.height)); } catch {} }
   doc.setDrawColor(...DARK); doc.line(sx, lineY, W - M, lineY);
   doc.setFontSize(9); doc.setTextColor(...DARK); doc.setFont('helvetica', 'bold');
   doc.text(profile.nome || 'Médico(a) Veterinário(a) Anestesista', sx + 47.5, lineY + 4, { align: 'center' });
@@ -1211,7 +1391,7 @@ function buildPDF(f, opts = {}) {
   const n = doc.getNumberOfPages(), gen = new Date().toLocaleString('pt-BR');
   for (let i = 1; i <= n; i++) {
     doc.setPage(i); doc.setFontSize(7); doc.setTextColor(...GRAY);
-    doc.text(`${p.nome || 'Paciente'} · ${pr.nome || ''} · Gerado em ${gen} – VetAnest Monitor`, M, H - 5);
+    doc.text(`${p.nome || 'Paciente'} · ${pr.nome || ''} · Gerado em ${gen} – VetAnest Monitor${pro ? '' : ' (plano gratuito)'}`, M, H - 5);
     doc.text(`Página ${i} de ${n}`, W - M, H - 5, { align: 'right' });
   }
   return doc;
@@ -1221,6 +1401,7 @@ async function exportPDF(mode = 'save') {
   const f = cur(); if (!f) return;
   if (!window.jspdf) return toast('Biblioteca de PDF não carregada – conecte-se à internet uma vez.', 'err');
   try {
+    if (!isPro() && (profile.logo || profile.assinatura)) toast('Logotipo e assinatura no PDF são recursos do plano Pro');
     const doc = buildPDF(f, { grafico: $('#optGrafico').checked });
     const name = pdfFileName(f);
     if (isNative()) { await nativeShareFile(doc.output('blob'), name); return; }
@@ -1234,10 +1415,9 @@ async function exportPDF(mode = 'save') {
 $('#btnPDF').onclick = () => exportPDF('save');
 $('#btnPDFShare').onclick = () => exportPDF('share');
 
-// ---------- Inicialização ----------
-if (curId && !cur()) curId = null;
-go(fichas.length ? (LS.get(K.view, 'fichas') === 'perfil' ? 'fichas' : LS.get(K.view, 'fichas')) : (profile.nome ? 'fichas' : 'perfil'));
-if ('serviceWorker' in navigator && location.protocol !== 'file:' && !isNative()) navigator.serviceWorker.register('sw.js').catch(() => {});
+// A inicialização (login, carga dos dados, sincronização) está em js/account.js → boot().
 </script>
+<script src="js/sync.js"></script>
+<script src="js/account.js"></script>
 </body>
 </html>

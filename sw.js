@@ -1,6 +1,7 @@
 /* Service worker: cache do app e das bibliotecas (CDN) para uso offline no centro cirúrgico. */
-const CACHE = 'vetanest-v1';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'];
+const CACHE = 'vetanest-v2';
+const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
+  './js/config.js', './js/store.js', './js/backend.js', './js/native.js', './js/sync.js', './js/account.js'];
 const CDN = [
   'https://cdn.tailwindcss.com/3.4.16',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',

@@ -1,6 +1,6 @@
 {
   "name": "vetanest-monitor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Monitoramento anestésico veterinário com ficha anestésica em PDF (PWA + app Android via Capacitor).",
   "scripts": {
@@ -9,7 +9,10 @@
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor-community/keep-awake": "^5.0.1",
     "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/browser": "^6.0.6",
     "@capacitor/core": "^6.2.0",
     "@capacitor/filesystem": "^6.0.0",
     "@capacitor/share": "^6.0.0"

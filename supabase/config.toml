@@ -1,0 +1,5 @@
+# O Mercado Pago chama o webhook sem o JWT do Supabase; a autenticidade é
+# garantida consultando o pagamento na API do Mercado Pago (e, opcionalmente,
+# pela assinatura x-signature com MP_WEBHOOK_SECRET).
+[functions.payment-webhook]
+verify_jwt = false

@@ -2,7 +2,7 @@ name: Android APK
 
 on:
   push:
-    paths-ignore: ['README.md']
+    paths-ignore: ['README.md', 'supabase/**']
   workflow_dispatch:
 
 permissions:
@@ -11,6 +11,13 @@ permissions:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      # Configure em Settings → Secrets and variables → Actions → Variables.
+      # Sem elas, o app é gerado em MODO DEMONSTRAÇÃO (sem servidor).
+      VA_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      VA_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      VA_CHECKOUT_SITE_URL: ${{ vars.CHECKOUT_SITE_URL }}
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,30 +43,55 @@ jobs:
       - name: Ícones do app
         run: npx capacitor-assets generate --android --assetPath resources
 
+      - name: Versão do app
+        run: |
+          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.1.${{ github.run_number }}\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
 
       - name: Sincronizar
         run: npx cap sync android
 
-      - name: Compilar APK (debug)
+      - name: Compilar APK de teste (debug)
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/VetAnest.apk"
 
+      # Build de produção assinado (Play Store) – só roda se os secrets existirem:
+      # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+      - name: Compilar release assinado (AAB + APK)
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KS_ALIAS_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          npx cap build android --keystorepath "$RUNNER_TEMP/release.keystore" --keystorepass "$KS_PASS" --keystorealias "$KS_ALIAS" --keystorealiaspass "$KS_ALIAS_PASS" --androidreleasetype AAB
+          npx cap build android --keystorepath "$RUNNER_TEMP/release.keystore" --keystorepass "$KS_PASS" --keystorealias "$KS_ALIAS" --keystorealiaspass "$KS_ALIAS_PASS" --androidreleasetype APK --signing-type apksigner
+          find android/app/build/outputs -name "*release*.aab" -exec cp {} "$GITHUB_WORKSPACE/VetAnest-release.aab" \;
+          find android/app/build/outputs -name "*release*.apk" -exec cp {} "$GITHUB_WORKSPACE/VetAnest-release.apk" \;
+          rm -f "$RUNNER_TEMP/release.keystore"
+          ls -la "$GITHUB_WORKSPACE"/VetAnest*
+
       - uses: actions/upload-artifact@v4
         with:
-          name: VetAnest-apk
-          path: VetAnest.apk
+          name: VetAnest-android
+          path: VetAnest*.a*
 
-      - name: Publicar APK como Release
+      - name: Publicar como Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-v1.0.${{ github.run_number }}
-          name: VetAnest APK v1.0.${{ github.run_number }}
+          tag_name: apk-v1.1.${{ github.run_number }}
+          name: VetAnest v1.1.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           prerelease: true
-          files: VetAnest.apk
+          files: VetAnest*.a*
           body: |
-            APK de teste (debug) do VetAnest Monitor, gerado a partir do commit ${{ github.sha }} (branch ${{ github.ref_name }}).
-            Baixe o **VetAnest.apk** abaixo no celular Android e permita "instalar apps de fontes desconhecidas" quando for pedido.
+            VetAnest Monitor – build ${{ github.run_number }} (commit ${{ github.sha }}, branch ${{ github.ref_name }}).
+            Modo: ${{ env.VA_SUPABASE_URL != '' && 'nuvem (Supabase)' || 'demonstração (sem servidor)' }}.
+
+            • **VetAnest.apk** – instale no celular Android para testar (permita "instalar apps desconhecidos").
+            • **VetAnest-release.aab** – pacote assinado para a Play Store (presente quando a keystore está configurada).
