@@ -23,12 +23,17 @@ Build local (requer Android SDK + JDK 17): `npm ci && npx cap add android && npm
 
 ## Contas, assinatura e nuvem
 
+> **Para colocar no ar e vender, siga o [GUIA-DE-VENDAS.md](GUIA-DE-VENDAS.md)** (Supabase + Pix na sua chave, sem conta de desenvolvedor).
+
 | Recurso | Como funciona |
 |---|---|
 | **Login / cadastro** | E-mail, senha, nome profissional, CRMV e UF (Supabase Auth). Esqueci a senha por e-mail. A sessão fica salva e o token é renovado automaticamente. O primeiro acesso em um aparelho precisa de internet; depois disso o app abre offline. |
 | **Plano (freemium)** | `trial` (14 dias ao criar a conta) → `ativo` (assinatura paga) → `expirado` (plano gratuito). O status vem do servidor e fica em cache para funcionar offline. |
 | **Recursos Pro** | Fichas em aberto ilimitadas (gratuito: até 3, configurável) e **PDF com logotipo e assinatura digital** (gratuito: PDF sem eles, com a marca "plano gratuito"). Fichas e PDFs já existentes nunca ficam bloqueados, e a monitoração em andamento nunca é interrompida. |
-| **Checkout** | Planos mensal e anual. **Pix**: QR Code + copia e cola no app, liberação automática após a confirmação. **Cartão**: Checkout Pro do Mercado Pago (o app nunca vê os dados do cartão). |
+| **Checkout – Pix manual** (padrão) | O app gera o Pix (BR Code do Banco Central, QR + copia e cola) na **sua chave**, com o valor do plano e um código de identificação. O cliente paga e toca em **Já fiz o Pix**. Você confere o recebimento e toca em **Confirmar** na tela **Administração** do app, e o Pro é liberado na hora no aparelho do cliente. Não precisa de conta de desenvolvedor. |
+| **Checkout – Mercado Pago** (opcional) | `PAGAMENTO: 'mercadopago'`: Pix e cartão com confirmação automática via API e webhook (Edge Functions). Exige uma aplicação no Mercado Pago Developers. |
+| **Preços** | Definidos no banco (tabela `plans`). O app mostra e o servidor grava sempre o preço oficial, mesmo que alguém altere o app. |
+| **Senha** | "Esqueci minha senha" envia um link por e-mail que abre a versão web em "Defina sua nova senha". |
 | **Offline-first** | Os dados são gravados primeiro no aparelho (**IndexedDB**, com fallback para localStorage), e a ficha em edição também vai para um *journal* síncrono a cada alteração. |
 | **Sincronização** | Automática ao entrar, ao reconectar, ao voltar ao app, ~3 s após cada alteração e a cada 60 s. Envia o que mudou e baixa o que mudou em outros aparelhos (pull incremental). Em conflito vence a edição mais recente, também no servidor. Exclusões são sincronizadas. O ícone ☁️ no topo mostra o estado (sincronizado, pendente, offline, erro). |
 | **Sessão expirada** | O usuário não é desconectado no meio de uma anestesia: aparece um aviso, os dados continuam no aparelho e ele entra de novo quando puder. |
@@ -37,7 +42,9 @@ Build local (requer Android SDK + JDK 17): `npm ci && npx cap add android && npm
 
 Com `SUPABASE_URL` vazio em `js/config.js`, o app roda em **modo demonstração**: conta, assinatura e "nuvem" são simuladas no próprio aparelho. Há botões para simular o fim do teste e a aprovação do pagamento. Use para testar o fluxo antes de configurar o servidor.
 
-### Colocando em produção
+### Colocando em produção (confirmação automática via Mercado Pago)
+
+Para o Pix manual basta o [GUIA-DE-VENDAS.md](GUIA-DE-VENDAS.md). Os passos abaixo são para a cobrança automática pela API do Mercado Pago:
 
 1. **Supabase**: crie um projeto em [supabase.com](https://supabase.com) e rode `supabase/schema.sql` no *SQL Editor*. Ele cria as tabelas, os triggers e as políticas RLS: cada usuário só acessa os próprios dados e o app não consegue alterar a assinatura.
 2. **Mercado Pago**: crie uma aplicação em [mercadopago.com.br/developers](https://www.mercadopago.com.br/developers) e pegue o *Access Token* de produção. Configure o webhook (tópico *Pagamentos*) para `https://<projeto>.supabase.co/functions/v1/payment-webhook` e copie a *assinatura secreta*.
@@ -87,11 +94,13 @@ Anestesias curtas cabem em uma página; as mais longas ocupam duas ou mais pági
 - `js/store.js`: armazenamento local (IndexedDB + journal síncrono).
 - `js/backend.js`: autenticação, conta, sincronização e checkout via API REST do Supabase, sem SDK. Inclui o backend de demonstração.
 - `js/sync.js`: motor de sincronização offline-first.
-- `js/account.js`: login/cadastro, plano freemium, checkout, botão Voltar e inicialização.
+- `js/account.js`: login/cadastro, plano freemium, checkout, administração de pagamentos, botão Voltar e inicialização.
+- `js/pix.js` + `js/vendor/qrcode.js`: geração do Pix (BR Code com CRC16) e do QR Code, sem API.
 - `js/native.js`: integração com o Android (voltar, tela acesa, navegador externo) e alternativas para o navegador.
 - `supabase/`: schema SQL com RLS e Edge Functions (`create-checkout`, `payment-webhook`) para o Mercado Pago.
 - [Tailwind CSS](https://tailwindcss.com) (Play CDN na web, CSS compilado no APK), [jsPDF](https://github.com/parallax/jsPDF) e [jsPDF-AutoTable](https://github.com/simonbengtsson/jsPDF-AutoTable).
 - `manifest.webmanifest` e `sw.js` para a instalação como PWA e o uso offline; [Capacitor](https://capacitorjs.com) para o Android.
+- Workflows: **Android APK** (APK/AAB em Releases) e **Web (GitHub Pages)** (versão web publicada a cada alteração).
 
 ## Avisos
 

@@ -139,3 +139,123 @@ create policy "fichas: editar as próprias" on public.fichas for update using (a
 -- O cliente não pode alterar colunas sensíveis do perfil além das suas.
 revoke update on public.profiles from anon, authenticated;
 grant  update (nome, crmv, uf, settings, settings_updated_at) on public.profiles to authenticated;
+
+-- =====================================================================
+-- PIX MANUAL (sem API/conta de desenvolvedor no Mercado Pago)
+-- O cliente paga o Pix gerado com a SUA chave e toca "Já fiz o Pix";
+-- você confere o recebimento no app do banco/Mercado Pago e confirma na
+-- tela "Administração" do VetAnest. A confirmação libera o Pro na hora.
+-- =====================================================================
+
+-- Quem pode confirmar pagamentos. Torne-se admin com:
+--   update public.profiles set is_admin = true where email = 'seu@email.com';
+alter table public.profiles add column if not exists is_admin boolean not null default false;
+
+-- Planos e preços (fonte da verdade para o valor cobrado).
+create table if not exists public.plans (
+  id    text primary key,
+  nome  text not null,
+  preco numeric(10, 2) not null,
+  meses int not null check (meses > 0)
+);
+insert into public.plans (id, nome, preco, meses) values
+  ('mensal', 'Pro Mensal', 39.90, 1),
+  ('anual',  'Pro Anual', 359.90, 12)
+on conflict (id) do update set nome = excluded.nome, preco = excluded.preco, meses = excluded.meses;
+
+alter table public.plans enable row level security;
+drop policy if exists "planos: leitura pública" on public.plans;
+create policy "planos: leitura pública" on public.plans for select using (true);
+
+-- Solicitações de ativação via Pix
+create table if not exists public.pix_requests (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users on delete cascade,
+  plan        text not null references public.plans (id),
+  amount      numeric(10, 2),
+  txid        text not null,
+  pagador     text,
+  status      text not null default 'pendente' check (status in ('pendente', 'aprovado', 'recusado')),
+  created_at  timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid
+);
+create index if not exists pix_requests_status_idx on public.pix_requests (status, created_at desc);
+
+-- Na criação: dono = usuário logado, status pendente e valor = preço oficial do plano.
+create or replace function public.pix_requests_before_insert()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is not null then new.user_id := auth.uid(); end if;
+  new.status := 'pendente'; new.reviewed_at := null; new.reviewed_by := null;
+  new.amount := (select preco from public.plans where id = new.plan);
+  new.txid := left(regexp_replace(coalesce(new.txid, ''), '[^A-Za-z0-9]', '', 'g'), 25);
+  new.pagador := left(new.pagador, 120);
+  if (select count(*) from public.pix_requests where user_id = new.user_id and status = 'pendente') >= 3 then
+    raise exception 'Você já tem pagamentos aguardando confirmação.' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+drop trigger if exists pix_requests_before_insert on public.pix_requests;
+create trigger pix_requests_before_insert before insert on public.pix_requests
+  for each row execute function public.pix_requests_before_insert();
+
+create or replace function public.is_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select is_admin from public.profiles where id = auth.uid()), false)
+$$;
+
+alter table public.pix_requests enable row level security;
+drop policy if exists "pix: criar a própria" on public.pix_requests;
+drop policy if exists "pix: ver as próprias (ou admin)" on public.pix_requests;
+create policy "pix: criar a própria" on public.pix_requests for insert with check (auth.uid() = user_id);
+create policy "pix: ver as próprias (ou admin)" on public.pix_requests for select using (auth.uid() = user_id or public.is_admin());
+
+-- Lista para a tela de administração
+create or replace function public.admin_listar_pix(p_status text default 'pendente')
+returns table (id uuid, user_id uuid, email text, nome text, crmv text, uf text, plan text, amount numeric,
+               txid text, pagador text, status text, created_at timestamptz, reviewed_at timestamptz, current_period_end timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Acesso negado' using errcode = '42501'; end if;
+  return query
+    select r.id, r.user_id, p.email, p.nome, p.crmv, p.uf, r.plan, r.amount, r.txid, r.pagador, r.status,
+           r.created_at, r.reviewed_at, s.current_period_end
+    from public.pix_requests r
+    left join public.profiles p on p.id = r.user_id
+    left join public.subscriptions s on s.user_id = r.user_id
+    where p_status is null or r.status = p_status
+    order by r.created_at desc
+    limit 200;
+end $$;
+
+-- Confirma o pagamento: soma os meses do plano à assinatura (a partir do fim atual, se ainda vigente).
+create or replace function public.admin_aprovar_pix(p_id uuid)
+returns timestamptz language plpgsql security definer set search_path = public as $$
+declare r public.pix_requests; m int; base timestamptz; novo timestamptz;
+begin
+  if not public.is_admin() then raise exception 'Acesso negado' using errcode = '42501'; end if;
+  update public.pix_requests set status = 'aprovado', reviewed_at = now(), reviewed_by = auth.uid()
+    where id = p_id and status = 'pendente' returning * into r;
+  if not found then raise exception 'Solicitação não encontrada ou já analisada'; end if;
+  select meses into m from public.plans where id = r.plan;
+  select greatest(now(), coalesce(current_period_end, now())) into base from public.subscriptions where user_id = r.user_id;
+  novo := coalesce(base, now()) + make_interval(months => m);
+  insert into public.subscriptions (user_id, status, plan, current_period_end, updated_at)
+    values (r.user_id, 'active', r.plan, novo, now())
+  on conflict (user_id) do update set status = 'active', plan = excluded.plan,
+    current_period_end = excluded.current_period_end, updated_at = now();
+  return novo;
+end $$;
+
+create or replace function public.admin_recusar_pix(p_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Acesso negado' using errcode = '42501'; end if;
+  update public.pix_requests set status = 'recusado', reviewed_at = now(), reviewed_by = auth.uid()
+    where id = p_id and status = 'pendente';
+  if not found then raise exception 'Solicitação não encontrada ou já analisada'; end if;
+end $$;
+
+revoke execute on function public.admin_listar_pix(text), public.admin_aprovar_pix(uuid), public.admin_recusar_pix(uuid) from public, anon;
+grant  execute on function public.admin_listar_pix(text), public.admin_aprovar_pix(uuid), public.admin_recusar_pix(uuid) to authenticated;

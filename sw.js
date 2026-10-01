@@ -1,7 +1,7 @@
 /* Service worker: cache do app e das bibliotecas (CDN) para uso offline no centro cirúrgico. */
-const CACHE = 'vetanest-v2';
+const CACHE = 'vetanest-v4';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
-  './js/config.js', './js/store.js', './js/backend.js', './js/native.js', './js/sync.js', './js/account.js'];
+  './js/config.js', './js/store.js', './js/pix.js', './js/vendor/qrcode.js', './js/backend.js', './js/native.js', './js/sync.js', './js/account.js'];
 const CDN = [
   'https://cdn.tailwindcss.com/3.4.16',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -28,7 +28,8 @@ self.addEventListener('fetch', e => {
   if (sameOrigin) {
     e.respondWith(fetch(req).then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put(req, cp)); return r; })
       .catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || caches.match('./index.html'))));
-  } else {
+  } else if (CDN.includes(req.url)) {
+    // Somente as bibliotecas versionadas da CDN; chamadas de API (Supabase etc.) nunca passam pelo cache.
     e.respondWith(caches.match(req.url).then(hit => hit || fetch(req).then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put(req.url, cp)); return r; })));
   }
 });

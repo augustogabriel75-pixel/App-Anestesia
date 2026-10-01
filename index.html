@@ -89,6 +89,7 @@
       <b>Modo demonstração:</b> servidor não configurado. A conta, a assinatura e a “nuvem” são simuladas neste aparelho.
     </div>
     <div class="card space-y-4">
+      <h2 id="recoveryTitle" class="hidden text-lg font-bold text-center">Defina sua nova senha</h2>
       <div class="seg" id="authTabs"><button data-t="login" class="on">Entrar</button><button data-t="signup">Criar conta</button></div>
       <form id="authForm" class="space-y-3" novalidate>
         <div class="signup-only hidden space-y-3">
@@ -98,9 +99,9 @@
             <div><label class="lbl" for="auUf">UF</label><select id="auUf" class="inp"></select></div>
           </div>
         </div>
-        <div><label class="lbl" for="auEmail">E-mail</label><input id="auEmail" class="inp" type="email" autocomplete="email" inputmode="email"></div>
+        <div id="auEmailBox"><label class="lbl" for="auEmail">E-mail</label><input id="auEmail" class="inp" type="email" autocomplete="email" inputmode="email"></div>
         <div><label class="lbl" for="auPass">Senha</label><input id="auPass" class="inp" type="password" autocomplete="current-password" minlength="6"></div>
-        <div class="signup-only hidden"><label class="lbl" for="auPass2">Confirmar senha</label><input id="auPass2" class="inp" type="password" autocomplete="new-password"></div>
+        <div id="auPass2Box" class="signup-only hidden"><label class="lbl" for="auPass2">Confirmar senha</label><input id="auPass2" class="inp" type="password" autocomplete="new-password"></div>
         <p id="authMsg" class="hidden text-sm rounded-lg px-3 py-2"></p>
         <button id="authSubmit" class="btn-primary w-full py-4 text-lg" type="submit">Entrar</button>
         <button id="authForgot" class="login-only w-full text-sm text-brand-700 font-semibold py-2" type="button">Esqueci minha senha</button>
@@ -342,6 +343,12 @@
       <button id="btnDemoExpire" class="btn-ghost text-xs py-2">Simular fim do período de teste</button>
     </div>
   </div>
+  <div class="card space-y-3 hidden" id="adminCard">
+    <div class="flex items-center gap-2"><div class="card-title mb-0 flex-1">💰 Administração – pagamentos Pix</div><button id="admRefresh" class="btn-ghost py-2 px-3 text-sm" aria-label="Atualizar">↻</button></div>
+    <p class="text-xs text-slate-500">Antes de confirmar, veja no app do seu banco/Mercado Pago se o Pix caiu: <b>valor</b>, <b>nome de quem pagou</b> e horário. Ao confirmar, o Pro do cliente é liberado na hora.</p>
+    <div class="seg" id="admFiltro"><button data-st="pendente" class="on">Pendentes</button><button data-st="">Todos</button></div>
+    <div id="admList" class="space-y-2"></div>
+  </div>
   <div class="card">
     <div class="card-title">👨‍⚕️ Perfil profissional</div>
     <p class="text-xs text-slate-500 mb-3">Preenchido uma única vez e salvo na sua conta (disponível em todos os seus aparelhos). Usado automaticamente em todas as novas fichas.</p>
@@ -483,7 +490,7 @@
 <div id="payModal" class="overlay hidden fixed inset-0 z-50 bg-slate-900/60 flex items-end sm:items-center justify-center">
   <div class="bg-slate-50 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[95vh] flex flex-col">
     <div class="flex items-center gap-3 px-4 py-3 bg-brand-800 text-white rounded-t-2xl">
-      <div class="flex-1"><div class="font-bold text-lg">Assine o VetAnest Pro</div><div class="text-xs text-brand-100">Pagamento seguro via Pix ou cartão</div></div>
+      <div class="flex-1"><div class="font-bold text-lg">Assine o VetAnest Pro</div><div class="text-xs text-brand-100" id="paySub">Pagamento seguro via Pix ou cartão</div></div>
       <button class="p-2 text-2xl leading-none" data-close aria-label="Fechar">×</button>
     </div>
     <div class="overflow-y-auto p-4 space-y-4">
@@ -493,12 +500,12 @@
         <li>✅ Acesso em vários aparelhos (celular, tablet, computador)</li>
       </ul>
       <div id="payPlans" class="grid grid-cols-2 gap-3"></div>
-      <div>
+      <div id="payMethodsBox">
         <div class="lbl">Forma de pagamento</div>
         <div class="seg" id="payMethods"><button data-m="pix" class="on">⚡ Pix</button><button data-m="cartao">💳 Cartão</button></div>
       </div>
       <div id="payStep" class="space-y-3"></div>
-      <p class="text-[11px] text-slate-400 text-center">Os dados do cartão são digitados apenas no ambiente seguro do processador de pagamentos; o VetAnest não armazena dados de cartão.</p>
+      <p id="payCardNote" class="text-[11px] text-slate-400 text-center">Os dados do cartão são digitados apenas no ambiente seguro do processador de pagamentos; o VetAnest não armazena dados de cartão.</p>
     </div>
   </div>
 </div>
@@ -526,6 +533,8 @@
 <script src="js/store.js"></script>
 <script src="js/backend.js"></script>
 <script src="js/native.js"></script>
+<script src="js/vendor/qrcode.js"></script>
+<script src="js/pix.js"></script>
 <script>
 'use strict';
 /* =====================================================================

@@ -30,10 +30,12 @@ cpSync('js', `${out}/js`, { recursive: true });
 // Variáveis de ambiente do build (CI) sobrescrevem a configuração do Supabase.
 const cfgPath = `${out}/js/config.js`;
 let cfg = readFileSync(cfgPath, 'utf8');
-for (const [env, key] of [['VA_SUPABASE_URL', 'SUPABASE_URL'], ['VA_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY'], ['VA_CHECKOUT_SITE_URL', 'CHECKOUT_SITE_URL']]) {
+for (const [env, key] of [['VA_SUPABASE_URL', 'SUPABASE_URL'], ['VA_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY'], ['VA_CHECKOUT_SITE_URL', 'CHECKOUT_SITE_URL'],
+  ['VA_PIX_CHAVE', 'PIX_CHAVE'], ['VA_PIX_NOME', 'PIX_NOME'], ['VA_PIX_CIDADE', 'PIX_CIDADE'], ['VA_SITE_URL', 'SITE_URL'], ['VA_PAGAMENTO', 'PAGAMENTO']]) {
   const v = process.env[env];
   if (v) cfg = cfg.replace(new RegExp(`${key}: '[^']*'`), `${key}: ${JSON.stringify(v)}`);
 }
 writeFileSync(cfgPath, cfg);
 cpSync('manifest.webmanifest', `${out}/manifest.webmanifest`);
+cpSync('sw.js', `${out}/sw.js`);   // só é registrado na versão web (PWA), nunca no app nativo
 console.log('www/ gerado');

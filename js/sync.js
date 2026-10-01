@@ -73,6 +73,13 @@ window.Sync = (() => {
 
       // 4) Conta e assinatura (fonte da verdade: servidor) + perfil remoto.
       const acc = await Backend.getAccount();
+      const sig = a => JSON.stringify(a ? [a.subscription, a.pix, a.adminPendentes, a.profile && a.profile.is_admin] : null);
+      if (sig(acc) !== sig(account)) {
+        const eraAtivo = account && account.subscription && account.subscription.status === 'active' && account.subscription.current_period_end;
+        changedAny = true;
+        if (account && acc.subscription && acc.subscription.current_period_end !== eraAtivo && acc.subscription.status === 'active' && Date.parse(acc.subscription.current_period_end) > Date.now())
+          setTimeout(() => window.toast && toast('⭐ Assinatura Pro ativa até ' + new Date(acc.subscription.current_period_end).toLocaleDateString('pt-BR')), 0);
+      }
       account = acc; await Store.set(ukey('account'), acc);
       const rp = acc.profile;
       if (rp && (rp.settings_updated_at || 0) > (profile.updatedAt || 0)) {

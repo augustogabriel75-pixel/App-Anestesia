@@ -24,8 +24,10 @@ window.Native = (() => {
     try {
       history.replaceState({ va: 'base' }, '');
       history.pushState({ va: 'trap' }, '');
-      window.addEventListener('popstate', () => {
-        if (exiting) return;
+      window.addEventListener('popstate', e => {
+        // Só é "Voltar" quando retorna à entrada base do app; navegações por #fragmento
+        // (ex.: link de redefinir senha) chegam com state null e são ignoradas.
+        if (exiting || !e.state || e.state.va !== 'base') return;
         history.pushState({ va: 'trap' }, '');
         handler();
       });

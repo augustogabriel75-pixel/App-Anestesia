@@ -23,6 +23,7 @@ window.Backend = (() => {
     [/unable to validate email|invalid format|email_address_invalid/i, 'E-mail inválido.'],
     [/rate limit|too many/i, 'Muitas tentativas. Aguarde alguns minutos.'],
     [/jwt expired|invalid jwt|refresh token/i, 'Sessão expirada. Entre novamente.'],
+    [/acesso negado|permission denied/i, 'Acesso negado.'],
   ];
   const translate = m => (MSGS.find(([re]) => re.test(m)) || [0, m])[1];
 
@@ -89,15 +90,36 @@ window.Backend = (() => {
       try { if (session) await http('/auth/v1/logout', { method: 'POST' }); } catch {}
       await persistSession(null);
     },
-    async resetPassword(email) { await http('/auth/v1/recover', { method: 'POST', auth: false, body: { email } }); },
+    async resetPassword(email) {
+      const to = C.SITE_URL ? '?redirect_to=' + encodeURIComponent(C.SITE_URL) : '';
+      await http('/auth/v1/recover' + to, { method: 'POST', auth: false, body: { email } });
+    },
+    // Link de "redefinir senha" (#access_token=…&type=recovery): abre a sessão para trocar a senha.
+    async recoverSession(params) {
+      const at = params.get('access_token');
+      const u = await http('/auth/v1/user', { auth: false, headers: { Authorization: 'Bearer ' + at } });
+      await persistSession(toSession({ access_token: at, refresh_token: params.get('refresh_token'), expires_in: +params.get('expires_in') || 3600, user: u }));
+    },
+    async updatePassword(password) { await http('/auth/v1/user', { method: 'PUT', body: { password } }); },
     async getAccount() {
       const uid = session.user.id;
-      const [p, s] = await Promise.all([
+      const [p, s, pix, plans] = await Promise.all([
         http(`/rest/v1/profiles?id=eq.${uid}&select=*`),
         http(`/rest/v1/subscriptions?user_id=eq.${uid}&select=*`),
+        http(`/rest/v1/pix_requests?user_id=eq.${uid}&select=id,plan,amount,txid,status,created_at&order=created_at.desc&limit=5`).catch(() => []),
+        http('/rest/v1/plans?select=id,preco,meses').catch(() => []),
       ]);
-      return { profile: p[0] || null, subscription: s[0] || null, fetchedAt: Date.now() };
+      const acc = { profile: p[0] || null, subscription: s[0] || null, pix, plans, fetchedAt: Date.now() };
+      if (acc.profile && acc.profile.is_admin) acc.adminPendentes = (await supabase.adminListPix('pendente').catch(() => [])).length;
+      return acc;
     },
+    async createPixRequest({ plano, txid, pagador }) {
+      const r = await http('/rest/v1/pix_requests', { method: 'POST', body: { plan: plano, txid, pagador }, headers: { Prefer: 'return=representation' } });
+      return r[0];
+    },
+    adminListPix: status => http('/rest/v1/rpc/admin_listar_pix', { method: 'POST', body: { p_status: status || null } }),
+    adminApprovePix: id => http('/rest/v1/rpc/admin_aprovar_pix', { method: 'POST', body: { p_id: id } }),
+    adminRejectPix: id => http('/rest/v1/rpc/admin_recusar_pix', { method: 'POST', body: { p_id: id } }),
     async pushFichas(rows) {
       if (!rows.length) return;
       await http('/rest/v1/fichas?on_conflict=id', { method: 'POST', body: rows.map(r => ({ ...r, user_id: session.user.id })), headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } });
@@ -154,7 +176,43 @@ window.Backend = (() => {
     },
     async signOut() { await persistSession(null); },
     async resetPassword() { throw new BackendError('Modo demonstração: recuperação de senha indisponível.'); },
-    async getAccount() { net(); const u = demoUser(); return { profile: { id: u.id, email: u.email, ...u.profile }, subscription: u.subscription, fetchedAt: Date.now() }; },
+    async recoverSession() { throw new BackendError('Modo demonstração: recuperação de senha indisponível.'); },
+    async updatePassword() {},
+    async getAccount() {
+      net(); const u = demoUser(), pix = dget('pix', []);
+      // No modo demonstração toda conta é "admin" para testar a confirmação do Pix.
+      return { profile: { id: u.id, email: u.email, ...u.profile, is_admin: true }, subscription: u.subscription,
+        pix: pix.filter(r => r.user_id === u.id).reverse().slice(0, 5), plans: [],
+        adminPendentes: pix.filter(r => r.status === 'pendente').length, fetchedAt: Date.now() };
+    },
+    async createPixRequest({ plano, txid, pagador }) {
+      net(); const u = demoUser(), pix = dget('pix', []);
+      if (pix.filter(r => r.user_id === u.id && r.status === 'pendente').length >= 3) throw new BackendError('Você já tem pagamentos aguardando confirmação.');
+      const plan = (C.PLANOS || []).find(p => p.id === plano) || {};
+      const r = { id: 'pix-' + Date.now(), user_id: u.id, email: u.email, nome: u.nome, crmv: u.crmv, uf: u.uf, plan: plano, amount: plan.preco, txid, pagador, status: 'pendente', created_at: new Date().toISOString() };
+      pix.push(r); dset('pix', pix); return r;
+    },
+    async adminListPix(status) {
+      net(); const users = Object.values(dget('users', {}));
+      return dget('pix', []).filter(r => !status || r.status === status).reverse()
+        .map(r => ({ ...r, current_period_end: (users.find(x => x.id === r.user_id) || { subscription: {} }).subscription.current_period_end }));
+    },
+    async adminApprovePix(id) {
+      net(); const pix = dget('pix', []), r = pix.find(x => x.id === id);
+      if (!r || r.status !== 'pendente') throw new BackendError('Solicitação não encontrada ou já analisada');
+      const all = dget('users', {}), u = Object.values(all).find(x => x.id === r.user_id);
+      const start = Math.max(Date.now(), Date.parse(u.subscription.current_period_end || 0) || 0);
+      const end = new Date(start); end.setMonth(end.getMonth() + (r.plan === 'anual' ? 12 : 1));
+      u.subscription = { ...u.subscription, status: 'active', plan: r.plan, current_period_end: end.toISOString() };
+      r.status = 'aprovado'; r.reviewed_at = new Date().toISOString();
+      all[u.email] = u; dset('users', all); dset('pix', pix);
+      return end.toISOString();
+    },
+    async adminRejectPix(id) {
+      net(); const pix = dget('pix', []), r = pix.find(x => x.id === id);
+      if (!r || r.status !== 'pendente') throw new BackendError('Solicitação não encontrada ou já analisada');
+      r.status = 'recusado'; r.reviewed_at = new Date().toISOString(); dset('pix', pix);
+    },
     async pushFichas(rows) {
       net(); const k = 'cloud.' + session.user.id, cloud = dget(k, {});
       rows.forEach(r => { const old = cloud[r.id]; if (old && old.client_updated_at > r.client_updated_at) return; cloud[r.id] = { ...r, server_updated_at: seq() }; });
@@ -194,6 +252,12 @@ window.Backend = (() => {
     signIn: (e, p) => impl.signIn(e, p),
     signOut: () => impl.signOut(),
     resetPassword: e => impl.resetPassword(e),
+    recoverSession: params => impl.recoverSession(params),
+    updatePassword: pw => impl.updatePassword(pw),
+    createPixRequest: a => impl.createPixRequest(a),
+    adminListPix: st => impl.adminListPix(st),
+    adminApprovePix: id => impl.adminApprovePix(id),
+    adminRejectPix: id => impl.adminRejectPix(id),
     getAccount: () => impl.getAccount(),
     pushFichas: rows => impl.pushFichas(rows),
     pullFichas: since => impl.pullFichas(since),

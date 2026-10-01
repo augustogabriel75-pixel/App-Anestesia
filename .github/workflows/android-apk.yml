@@ -17,6 +17,11 @@ jobs:
       VA_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
       VA_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
       VA_CHECKOUT_SITE_URL: ${{ vars.CHECKOUT_SITE_URL }}
+      VA_PIX_CHAVE: ${{ vars.PIX_CHAVE }}
+      VA_PIX_NOME: ${{ vars.PIX_NOME }}
+      VA_PIX_CIDADE: ${{ vars.PIX_CIDADE }}
+      VA_PAGAMENTO: ${{ vars.PAGAMENTO }}
+      VA_SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4

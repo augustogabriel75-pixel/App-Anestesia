@@ -1,0 +1,60 @@
+name: Web (GitHub Pages)
+
+# Publica a versão web/PWA em https://<usuário>.github.io/<repositório>/
+# Pré-requisito (uma vez): Settings → Pages → Source: "GitHub Actions".
+on:
+  push:
+    paths-ignore: ['README.md', 'GUIA-DE-VENDAS.md', 'supabase/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      VA_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      VA_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      VA_CHECKOUT_SITE_URL: ${{ vars.CHECKOUT_SITE_URL }}
+      VA_PIX_CHAVE: ${{ vars.PIX_CHAVE }}
+      VA_PIX_NOME: ${{ vars.PIX_NOME }}
+      VA_PIX_CIDADE: ${{ vars.PIX_CIDADE }}
+      VA_PAGAMENTO: ${{ vars.PAGAMENTO }}
+      VA_SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build:www
+
+      - name: Verificar se o GitHub Pages está ativado
+        id: pages
+        continue-on-error: true
+        uses: actions/configure-pages@v5
+
+      - name: Aviso
+        if: steps.pages.outcome != 'success'
+        run: echo "::warning::GitHub Pages não está ativado. Ative em Settings → Pages → Source: GitHub Actions e rode este workflow de novo."
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.pages.outcome == 'success'
+        with:
+          path: www
+
+      - name: Publicar
+        id: deploy
+        if: steps.pages.outcome == 'success'
+        uses: actions/deploy-pages@v4
