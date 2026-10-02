@@ -35,6 +35,20 @@ for (const [env, key] of [['VA_SUPABASE_URL', 'SUPABASE_URL'], ['VA_SUPABASE_ANO
   const v = process.env[env];
   if (v) cfg = cfg.replace(new RegExp(`${key}: '[^']*'`), `${key}: ${JSON.stringify(v)}`);
 }
+// Versão do app (número do build) e arquivo versao.json publicado junto com o site.
+const build = parseInt(process.env.VA_APP_BUILD || '0', 10);
+if (build) {
+  const versao = process.env.VA_APP_VERSION || `1.2.${build}`;
+  cfg = cfg.replace(/APP_VERSION: '[^']*'/, `APP_VERSION: ${JSON.stringify(versao)}`).replace(/APP_BUILD: \d+/, `APP_BUILD: ${build}`);
+  const minimo = parseInt(process.env.VA_VERSAO_MINIMA || '0', 10) || 0;
+  writeFileSync(`${out}/versao.json`, JSON.stringify({
+    build, versao, minimo,
+    apk_url: process.env.VA_APK_URL || '',
+    notas: process.env.VA_NOVIDADES || 'Melhorias e correções.',
+    publicado: new Date().toISOString(),
+  }, null, 2));
+  console.log(`versão ${versao} (build ${build}, mínimo ${minimo})`);
+}
 writeFileSync(cfgPath, cfg);
 cpSync('manifest.webmanifest', `${out}/manifest.webmanifest`);
 cpSync('sw.js', `${out}/sw.js`);   // só é registrado na versão web (PWA), nunca no app nativo

@@ -229,6 +229,7 @@
           <div id="monElapsed" class="font-mono text-4xl font-bold text-brand-800">00:00:00</div>
           <div id="monStart" class="text-xs text-slate-500">Anestesia não iniciada</div>
           <div id="awakeInfo" class="hidden text-xs font-semibold mt-1"></div>
+          <div id="updFaixa" class="hidden text-xs font-semibold mt-1 text-sky-700"></div>
         </div>
         <div class="flex gap-2">
           <button id="btnIniciar" class="btn-primary px-5">▶ Iniciar anestesia</button>
@@ -382,6 +383,7 @@
   <div class="card text-xs text-slate-500 space-y-1">
     <p><b>Armazenamento:</b> os dados são gravados primeiro neste aparelho (IndexedDB), funcionando sem internet, e sincronizados com a nuvem da sua conta quando houver conexão.</p>
     <p id="storageInfo"></p>
+    <div class="flex items-center gap-2 pt-1"><span id="appVersao" class="flex-1"></span><button id="btnVerificarVersao" class="btn-ghost py-1.5 px-3 text-xs">Verificar atualizações</button></div>
   </div>
   <button class="btn-primary w-full py-4" data-go="fichas">Concluir</button>
 </section>
@@ -505,6 +507,20 @@
       <div id="payStep" class="space-y-3"></div>
       <p id="payCardNote" class="text-[11px] text-slate-400 text-center">Os dados do cartão são digitados apenas no ambiente seguro do processador de pagamentos; o VetAnest não armazena dados de cartão.</p>
     </div>
+  </div>
+</div>
+
+<!-- ============ MODAL ATUALIZAÇÃO ============ -->
+<div id="updModal" class="overlay hidden fixed inset-0 z-[55] bg-slate-900/70 flex items-end sm:items-center justify-center">
+  <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4" style="padding-bottom:calc(1.25rem + env(safe-area-inset-bottom))">
+    <div class="text-4xl text-center">⬆️</div>
+    <h2 class="text-xl font-bold text-center" id="updTitulo">Nova versão disponível</h2>
+    <p class="text-sm text-slate-600 text-center" id="updTexto"></p>
+    <p class="text-xs text-slate-500 text-center font-mono" id="updVersoes"></p>
+    <p class="hidden text-sm rounded-lg bg-slate-50 border border-slate-200 p-3 whitespace-pre-line" id="updNotas"></p>
+    <p class="hidden text-xs text-slate-500" id="updAjuda">O download abre no navegador. Ao terminar, toque no arquivo <b>VetAnest.apk</b> e em <b>Atualizar</b>. Na primeira vez o Android pode pedir para permitir instalar apps desta fonte.</p>
+    <button class="btn-primary w-full py-4 text-lg" id="updAgora">Atualizar agora</button>
+    <button class="btn-ghost w-full" id="updDepois">Depois</button>
   </div>
 </div>
 
@@ -976,6 +992,7 @@ $('#btnEncerrar').onclick = () => {
   const f = cur(); if (!confirm('Encerrar a anestesia agora?')) return;
   const now = new Date(); f.monitor.fim = now.getTime(); if (!f.resumo.fimAnest) f.resumo.fimAnest = hhmm(now);
   save(true); keepAwake(false); hideDue(); renderMonitor(); toast('Anestesia encerrada'); go('resumo');
+  if (window.Update) setTimeout(() => Update.aposAnestesia(), 1500);   // aviso de versão que estava aguardando
 };
 
 function nextDue(f) {
@@ -1416,6 +1433,7 @@ $('#btnPDFShare').onclick = () => exportPDF('share');
 
 // A inicialização (login, carga dos dados, sincronização) está em js/account.js → boot().
 </script>
+<script src="js/update.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/account.js"></script>
 </body>

@@ -437,6 +437,7 @@ function onAuthLost(msg) {
 function handleBack() {
   if (Autocomplete.isOpen()) { Autocomplete.hide(); return; }
   const open = $$('.overlay:not(.hidden)');
+  if (open.length && open[open.length - 1].id === 'updModal' && Update.bloqueante()) return askExit();   // obrigatória: não fecha
   if (open.length) { closeModal(open[open.length - 1]); return; }
   if (view === 'auth') return askExit();
   while (navStack.length) { const v = navStack.pop(); if (v !== view) { go(v, false); return; } }
@@ -465,6 +466,7 @@ async function boot() {
     if (pay.waiting) verificarPagamento(false);
     if (anestesiaEmAndamento()) keepAwake(true);
   });
+  Native.onResume(() => Update.verificar());
   Sync.onChange(renderSyncUI);
   Sync.setHandlers({ onRemoteChange: () => render(), onAuthLost });
   Backend.onAuthChange(s => { if (!s && user && !leaving) onAuthLost(); });
@@ -472,6 +474,7 @@ async function boot() {
   window.addEventListener('hashchange', () => linkDeEmail());   // link aberto com o app já carregado
   if (await linkDeEmail()) { /* tela de nova senha */ }
   else if (s && s.user) await enterApp(s.user); else showAuth();
+  Update.iniciar();
   // Versão web: mostra "Baixar o app para Android" se o APK estiver publicado neste servidor (VPS).
   if (!isNative() && location.protocol.startsWith('http')) {
     fetch('download/VetAnest.apk', { method: 'HEAD', cache: 'no-store' })

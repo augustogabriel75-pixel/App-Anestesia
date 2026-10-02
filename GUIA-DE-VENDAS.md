@@ -153,6 +153,23 @@ No Supabase → **SQL Editor → New query**, cole o arquivo [`supabase/tests/rl
   where user_id = (select id from public.profiles where email = 'cliente@email.com');
   ```
 
+## Atualizações do app (aviso e versão mínima)
+
+A cada alteração no código, o GitHub gera uma versão nova, por exemplo **1.2.112** (o último número é o *build*), e publica o arquivo `versao.json` no site **depois** que o APK novo já está disponível. Os apps dos clientes consultam esse arquivo ao abrir, ao voltar para o app e a cada 30 minutos:
+
+- **Aviso opcional** (padrão): "Nova versão disponível – **Atualizar** / **Depois**". O "Depois" silencia por 24 horas.
+- **Atualização obrigatória:** tela sem o botão "Depois". Para ativar:
+  1. Veja o número da versão em **Releases** (ex.: `VetAnest v1.2.112` → build **112**).
+  2. **Settings → Secrets and variables → Actions → Variables**: crie ou edite `VERSAO_MINIMA` = `112`.
+  3. (Opcional) `NOVIDADES` = texto curto mostrado no aviso, ex.: `Correção no cálculo de fluidos`.
+  4. **Actions → Web (site) → Run workflow**.
+  Quem estiver em versão menor que 112 precisa atualizar para continuar usando.
+- **Segurança clínica:** o aviso **nunca aparece durante uma anestesia em andamento**. No Monitor surge só uma faixa discreta, e a tela aparece quando a anestesia é **encerrada**, com os dados já salvos. Sem internet o app **nunca bloqueia**, para não travar o uso no centro cirúrgico.
+- **No Android**, "Baixar e instalar" baixa o APK pelo navegador. O cliente toca no arquivo e em **Atualizar**, e os dados continuam no aparelho e na nuvem. Isso exige a chave fixa (Passo 4, item 4): sem ela o Android recusa instalar por cima. Na versão web, "Atualizar agora" só recarrega a página.
+- **Perfil → Verificar atualizações** mostra a versão instalada e busca a mais nova na hora.
+
+> Os APKs gerados **antes** deste recurso não sabem verificar versões. Peça aos clientes que já instalaram para baixar o APK novo uma única vez; a partir dele, os avisos são automáticos.
+
 ## Pontos de atenção
 
 - **Play Store:** a Google exige o faturamento dela (Google Play Billing) para venda de assinaturas digitais dentro de apps da loja. Pix manual dentro do app pode levar à rejeição. Para vender com Pix sem problemas, distribua o **APK direto** (link do Releases ou do seu site) e a **versão web**. Se for publicar na Play Store, configure a variável `CHECKOUT_SITE_URL` com o link da versão web para o app Android abrir o pagamento fora do app, e confira as regras vigentes no Brasil.

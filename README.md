@@ -36,6 +36,7 @@ Build local (requer Android SDK + JDK 17): `npm ci && npx cap add android && npm
 | **Senha** | "Esqueci minha senha" envia um link por e-mail que abre a versão web em "Defina sua nova senha". |
 | **Offline-first** | Os dados são gravados primeiro no aparelho (**IndexedDB**, com fallback para localStorage), e a ficha em edição também vai para um *journal* síncrono a cada alteração. |
 | **Sincronização** | Automática ao entrar, ao reconectar, ao voltar ao app, ~3 s após cada alteração e a cada 60 s. Envia o que mudou e baixa o que mudou em outros aparelhos (pull incremental). Em conflito vence a edição mais recente, também no servidor. Exclusões são sincronizadas. O ícone ☁️ no topo mostra o estado (sincronizado, pendente, offline, erro). |
+| **Atualizações** | O build publica `versao.json`. O app avisa sobre versão nova (opcional, "Depois" por 24 h) e bloqueia versões abaixo da mínima (`VERSAO_MINIMA`), **nunca durante uma anestesia em andamento** nem sem internet. No Android baixa o APK e no navegador recarrega a página. |
 | **Sessão expirada** | O usuário não é desconectado no meio de uma anestesia: aparece um aviso, os dados continuam no aparelho e ele entra de novo quando puder. |
 
 ### Modo demonstração

@@ -26,6 +26,15 @@ jobs:
       HAS_VPS: ${{ secrets.VPS_HOST != '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # histórico completo: o número do build vem da contagem de commits
+
+      - name: Número da versão
+        run: |
+          BUILD=$((100 + $(git rev-list --count HEAD)))
+          echo "VA_APP_BUILD=$BUILD" >> "$GITHUB_ENV"
+          echo "VA_APP_VERSION=1.2.$BUILD" >> "$GITHUB_ENV"
+          echo "Versão 1.2.$BUILD (build $BUILD)"
 
       - uses: actions/setup-node@v4
         with:
@@ -51,7 +60,7 @@ jobs:
 
       - name: Versão do app
         run: |
-          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.1.${{ github.run_number }}\"/" android/app/build.gradle
+          sed -i "s/versionCode 1$/versionCode $VA_APP_BUILD/; s/versionName \"1.0\"/versionName \"$VA_APP_VERSION\"/" android/app/build.gradle
           grep -E "versionCode|versionName" android/app/build.gradle
 
       - name: Sincronizar
@@ -102,13 +111,14 @@ jobs:
       - name: Publicar como Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-v1.1.${{ github.run_number }}
-          name: VetAnest v1.1.${{ github.run_number }}
+          tag_name: apk-v${{ env.VA_APP_VERSION }}
+          name: VetAnest v${{ env.VA_APP_VERSION }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
+          make_latest: true
           files: VetAnest*.a*
           body: |
-            VetAnest Monitor – build ${{ github.run_number }} (commit ${{ github.sha }}, branch ${{ github.ref_name }}).
+            VetAnest Monitor – versão ${{ env.VA_APP_VERSION }} (commit ${{ github.sha }}, branch ${{ github.ref_name }}).
             Modo: ${{ env.VA_SUPABASE_URL != '' && 'nuvem (Supabase)' || 'demonstração (sem servidor)' }}.
 
             • **VetAnest.apk** – instale no celular Android para testar (permita "instalar apps desconhecidos").

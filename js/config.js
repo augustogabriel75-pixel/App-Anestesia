@@ -46,6 +46,11 @@ window.VA_CONFIG = {
   NATIVE_CHECKOUT: 'inapp',
   CHECKOUT_SITE_URL: '',
 
+  // Versão do app – preenchida automaticamente pelo build (GitHub Actions).
+  APP_VERSION: 'dev',
+  APP_BUILD: 0,          // 0 = versão de desenvolvimento (não verifica atualizações)
+  VERSAO_URL: '',        // padrão: SITE_URL + 'versao.json'
+
   SUPORTE_EMAIL: '',
   SYNC_INTERVAL_MS: 60000,
 };

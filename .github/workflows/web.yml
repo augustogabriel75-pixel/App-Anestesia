@@ -3,9 +3,12 @@ name: Web (site)
 # Publica a versão web/PWA:
 #  - na sua VPS (domínio próprio), se os secrets VPS_* existirem;
 #  - no GitHub Pages, se estiver ativado (Settings → Pages → Source: "GitHub Actions").
+#  - Roda logo depois do workflow "Android APK" terminar com sucesso, para que o
+#    versao.json só anuncie uma versão cujo APK já está disponível para download.
 on:
-  push:
-    paths-ignore: ['README.md', 'GUIA-DE-VENDAS.md', 'supabase/**']
+  workflow_run:
+    workflows: ['Android APK']
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -19,6 +22,7 @@ concurrency:
 
 jobs:
   web:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -33,8 +37,26 @@ jobs:
       VA_PAGAMENTO: ${{ vars.PAGAMENTO }}
       VA_SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
       HAS_VPS: ${{ secrets.VPS_HOST != '' }}
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      VA_VERSAO_MINIMA: ${{ vars.VERSAO_MINIMA }}
+      VA_NOVIDADES: ${{ vars.NOVIDADES }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Número da versão e link do APK
+        run: |
+          BUILD=$((100 + $(git rev-list --count HEAD)))
+          echo "VA_APP_BUILD=$BUILD" >> "$GITHUB_ENV"
+          echo "VA_APP_VERSION=1.2.$BUILD" >> "$GITHUB_ENV"
+          if [ -n "${{ vars.APK_URL }}" ]; then URL="${{ vars.APK_URL }}"
+          elif [ "$HAS_VPS" = "true" ]; then URL="${VA_SITE_URL%/}/download/VetAnest.apk"
+          elif [ "$HAS_KEYSTORE" = "true" ]; then URL="https://github.com/${{ github.repository }}/releases/latest/download/VetAnest-release.apk"
+          else URL="https://github.com/${{ github.repository }}/releases/latest/download/VetAnest.apk"; fi
+          echo "VA_APK_URL=$URL" >> "$GITHUB_ENV"
+          echo "Versão 1.2.$BUILD – APK: $URL – mínima: ${VA_VERSAO_MINIMA:-0}"
       - uses: actions/setup-node@v4
         with:
           node-version: 20
