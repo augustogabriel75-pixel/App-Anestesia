@@ -106,6 +106,7 @@
         <button id="authSubmit" class="btn-primary w-full py-4 text-lg" type="submit">Entrar</button>
         <button id="authForgot" class="login-only w-full text-sm text-brand-700 font-semibold py-2" type="button">Esqueci minha senha</button>
       </form>
+      <a href="download/VetAnest.apk" class="apk-link hidden btn-soft w-full" download>📱 Baixar o app para Android</a>
       <p class="signup-only hidden text-xs text-slate-500 text-center">Ao criar a conta você ganha <b id="trialDays">14</b> dias de teste grátis do plano Pro.</p>
     </div>
   </div>
@@ -113,15 +114,11 @@
 
 <!-- ============ FICHAS ============ -->
 <section id="v-fichas" class="view space-y-4">
-  <div class="grid grid-cols-2 gap-3">
-    <button id="btnNova" class="btn-primary py-4 text-lg col-span-2 sm:col-span-1">
+  <div>
+    <button id="btnNova" class="btn-primary py-4 text-lg w-full">
       <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
       Nova ficha anestésica
     </button>
-    <div class="col-span-2 sm:col-span-1 grid grid-cols-2 gap-3">
-      <button id="btnBackup" class="btn-ghost text-sm">Backup (JSON)</button>
-      <label class="btn-ghost text-sm cursor-pointer">Restaurar<input id="inpRestore" type="file" accept="application/json,.json" class="hidden"></label>
-    </div>
   </div>
   <div id="planBanner" class="hidden"></div>
   <div id="profileWarn" class="hidden card border-amber-300 bg-amber-50 text-amber-900 text-sm">
@@ -160,7 +157,7 @@
           <div class="seg" data-seg="paciente.especie"><button data-v="Cão">🐕 Cão</button><button data-v="Gato">🐈 Gato</button><button data-v="Equino">🐎 Equino</button><button data-v="Outro">Outro</button></div>
           <input class="inp mt-2 hidden" id="especieOutro" data-f="paciente.especieOutro" placeholder="Qual espécie?">
         </div>
-        <div><label class="lbl">Raça</label><input class="inp" data-f="paciente.raca" list="dlRacas"></div>
+        <div><label class="lbl">Raça</label><input class="inp" id="inpRaca" data-f="paciente.raca" data-ac="racas" autocomplete="off" placeholder="Digite ou escolha na lista"></div>
         <div><label class="lbl">Idade</label><input class="inp" data-f="paciente.idade" placeholder="ex.: 5 anos / 8 meses"></div>
         <div>
           <label class="lbl">Sexo</label>
@@ -174,7 +171,7 @@
     <div class="card">
       <div class="card-title">🩺 Procedimento</div>
       <div class="grid sm:grid-cols-2 gap-3">
-        <div class="sm:col-span-2"><label class="lbl">Cirurgia / Procedimento realizado</label><input class="inp" data-f="proc.nome" list="dlProc"></div>
+        <div class="sm:col-span-2"><label class="lbl">Cirurgia / Procedimento realizado</label><input class="inp" data-f="proc.nome" data-ac="procedimentos" autocomplete="off" placeholder="Digite ou escolha na lista"></div>
         <div><label class="lbl">Data</label><input class="inp" data-f="proc.data" type="date"></div>
         <div><label class="lbl">Cirurgião(ã)</label><input class="inp" data-f="proc.cirurgiao"></div>
         <div class="sm:col-span-2">
@@ -213,7 +210,7 @@
     <div class="card">
       <div class="card-title">💧 Fluidoterapia</div>
       <div class="grid sm:grid-cols-3 gap-3">
-        <div><label class="lbl">Fluido</label><input class="inp" data-f="fluido.tipo" list="dlFluidos" placeholder="Ringer lactato"></div>
+        <div><label class="lbl">Fluido</label><input class="inp" data-f="fluido.tipo" data-ac="fluidos" autocomplete="off" placeholder="Busque por nome ou sigla (ex.: RL, NaCl)"></div>
         <div><label class="lbl">Taxa (mL/kg/h)</label><input class="inp" data-f="fluido.taxa" type="number" inputmode="decimal" min="0" step="0.5"></div>
         <div><label class="lbl">Taxa (mL/h)</label><div id="fluidoMlH" class="inp bg-slate-50 font-bold">—</div></div>
       </div>
@@ -338,6 +335,7 @@
       <button id="btnSyncNow" class="btn-soft">↻ Sincronizar</button>
       <button id="btnLogout" class="btn-ghost">Sair da conta</button>
     </div>
+    <a href="download/VetAnest.apk" class="apk-link hidden btn-soft w-full" download>📱 Baixar o app para Android</a>
     <div id="demoTools" class="hidden rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 space-y-2">
       <div><b>Modo demonstração.</b> Ferramentas de teste:</div>
       <button id="btnDemoExpire" class="btn-ghost text-xs py-2">Simular fim do período de teste</button>
@@ -524,15 +522,13 @@
 
 <div id="toast" class="hidden fixed bottom-24 inset-x-4 z-50 max-w-md mx-auto rounded-xl px-4 py-3 text-white text-sm font-medium shadow-lg text-center"></div>
 
-<datalist id="dlRacas"><option>SRD</option><option>Labrador Retriever</option><option>Golden Retriever</option><option>Shih Tzu</option><option>Yorkshire Terrier</option><option>Poodle</option><option>Lhasa Apso</option><option>Buldogue Francês</option><option>Pinscher</option><option>Spitz Alemão</option><option>Pastor Alemão</option><option>Border Collie</option><option>Dachshund</option><option>Pug</option><option>Rottweiler</option><option>Persa</option><option>Siamês</option><option>Maine Coon</option><option>Quarto de Milha</option><option>Mangalarga Marchador</option><option>Puro Sangue Inglês</option><option>Crioulo</option></datalist>
-<datalist id="dlProc"><option>Ovariohisterectomia eletiva</option><option>Orquiectomia</option><option>Profilaxia dentária / Tratamento periodontal</option><option>Mastectomia</option><option>Nodulectomia</option><option>Enterotomia</option><option>Cistotomia</option><option>Osteossíntese</option><option>Colocefalectomia</option><option>TPLO</option><option>Esplenectomia</option><option>Cesariana</option><option>Laparotomia exploratória</option><option>Correção de hérnia</option><option>Enucleação</option><option>Tomografia computadorizada</option><option>Ressonância magnética</option><option>Laparotomia (cólica equina)</option></datalist>
-<datalist id="dlFluidos"><option>Ringer lactato</option><option>NaCl 0,9%</option><option>Ringer simples</option><option>Plasma-Lyte</option><option>Glicose 5%</option><option>NaCl 0,9% + Glicose 2,5%</option><option>Coloide</option></datalist>
-<datalist id="dlFarmacos"></datalist>
 
 <script src="js/config.js"></script>
 <script src="js/store.js"></script>
 <script src="js/backend.js"></script>
 <script src="js/native.js"></script>
+<script src="js/catalogos.js"></script>
+<script src="js/autocomplete.js"></script>
 <script src="js/vendor/qrcode.js"></script>
 <script src="js/pix.js"></script>
 <script>
@@ -690,7 +686,7 @@ function novaFicha() {
     paciente: { nome: '', especie: 'Cão', especieOutro: '', raca: '', idade: '', sexo: '', castrado: false, peso: '' },
     proc: { nome: '', data: todayISO(), cirurgiao: '', asa: '', emergencia: false, risco: '', jejumSolido: '', jejumLiquido: '', obs: '' },
     farmacos: [],
-    fluido: { tipo: 'Ringer lactato', taxa: '5' },
+    fluido: { tipo: CATALOGOS.fluidoTexto(CATALOGOS.FLUIDOS[0]), taxa: '5' },
     monitor: { intervalo: 5, inicio: null, fim: null },
     registros: [],
     resumo: { inicioAnest: '', inicioCir: '', fimCir: '', fimAnest: '', extubacao: '', fluidoTotal: '', intercorrenciasTrans: '', intercorrenciasPos: '', recuperacao: '', obs: '' },
@@ -771,7 +767,13 @@ function fillForms() {
 }
 
 function onFieldChange(path) {
-  if (path === 'paciente.especie') $('#especieOutro').classList.toggle('hidden', cur().paciente.especie !== 'Outro');
+  if (path === 'paciente.especie') {
+    const p = cur().paciente, lista = CATALOGOS.RACAS[p.especie] || [];
+    $('#especieOutro').classList.toggle('hidden', p.especie !== 'Outro');
+    // Raça de outra espécie (ex.: "Labrador" ao trocar para Gato) é apagada.
+    if (p.raca && !lista.includes(p.raca) && Object.values(CATALOGOS.RACAS).some(l => l.includes(p.raca))) { p.raca = ''; $('#inpRaca').value = ''; save(); }
+    racaPlaceholder();
+  }
   if (path.startsWith('paciente.') || path.startsWith('proc.')) renderHeader();
   if (path === 'paciente.peso' || path.startsWith('fluido.')) { renderFluidoRate(); if (view === 'farmacos') renderFarmacos(); }
   if (path === 'monitor.intervalo') { alertedFor = null; tick(); }
@@ -783,13 +785,17 @@ function render() {
   fillForms(); renderHeader();
   if (window.renderAccountUI) renderAccountUI();
   if (view === 'fichas') renderFichas();
-  if (view === 'paciente') { const f = cur(); if (f) $('#especieOutro').classList.toggle('hidden', f.paciente.especie !== 'Outro'); }
+  if (view === 'paciente') { const f = cur(); if (f) $('#especieOutro').classList.toggle('hidden', f.paciente.especie !== 'Outro'); racaPlaceholder(); }
   if (view === 'farmacos') { renderFarmacos(); renderFluidoRate(); }
   if (view === 'monitor') renderMonitor();
   if (view === 'resumo') renderResumo();
   if (view === 'perfil') renderPerfil();
 }
 
+function racaPlaceholder() {
+  const f = cur(), ex = { 'Cão': 'ex.: SRD, Shih Tzu, Labrador', 'Gato': 'ex.: SRD, Persa, Siamês', 'Equino': 'ex.: Quarto de Milha, Crioulo' };
+  $('#inpRaca').placeholder = f && ex[f.paciente.especie] ? 'Digite ou escolha – ' + ex[f.paciente.especie] : 'Digite a raça';
+}
 function especieTxt(p) { return p.especie === 'Outro' ? (p.especieOutro || 'Outro') : (p.especie || ''); }
 function renderHeader() {
   const f = cur();
@@ -850,28 +856,12 @@ async function nativeShareFile(blob, name) {
   try { await Share.share({ title: name, url: uri, dialogTitle: 'Salvar / enviar ' + name }); }
   catch (e) { if (!/cancel/i.test(e.message || '')) throw e; }
 }
-async function downloadFile(blob, name) {
-  if (isNative()) return nativeShareFile(blob, name);
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-}
-$('#btnBackup').onclick = async () => {
-  const blob = new Blob([JSON.stringify({ app: 'vetanest', v: 2, exportedAt: new Date().toISOString(), profile, fichas: live() }, null, 1)], { type: 'application/json' });
-  try { await downloadFile(blob, `vetanest-backup-${todayISO()}.json`); } catch (e) { toast('Erro ao salvar backup: ' + e.message, 'err'); }
-};
-$('#inpRestore').onchange = async e => {
-  const file = e.target.files[0]; e.target.value = ''; if (!file) return;
-  try {
-    const data = JSON.parse(await file.text());
-    if (!Array.isArray(data.fichas)) throw new Error();
-    const ids = new Set(fichas.map(f => f.id)); let add = 0;
-    data.fichas.forEach(f => { if (f && f.id && !f.deleted && !ids.has(f.id)) { f.updatedAt = Date.now(); delete f.syncedAt; fichas.push(f); add++; } });
-    if (data.profile && confirm('Restaurar também o perfil profissional do backup?')) { profile = { ...data.profile }; saveProfile(); }
-    save(true); render(); toast(`${add} ficha(s) importada(s)`);
-  } catch { toast('Arquivo de backup inválido', 'err'); }
-};
-
 // ---------- Fármacos ----------
-$('#dlFarmacos').innerHTML = Object.keys(CONC).map(n => `<option value="${n}">`).join('');
+// Buscas (autocomplete): fármacos, raças conforme a espécie e fluidos (nome ou sigla).
+Autocomplete.register('farmacos', () => Object.keys(CONC).map(n => ({ value: n, label: n, hint: CONC[n] != null ? fmt(CONC[n]) + ' mg/mL' : '' })));
+Autocomplete.register('racas', () => { const f = cur(); return ((f && CATALOGOS.RACAS[f.paciente.especie]) || []).map(r => ({ value: r, label: r })); });
+Autocomplete.register('procedimentos', () => CATALOGOS.PROCEDIMENTOS.map(x => ({ value: x, label: x })));
+Autocomplete.register('fluidos', () => CATALOGOS.FLUIDOS.map(x => ({ value: CATALOGOS.fluidoTexto(x), label: x.nome, hint: x.sigla, keys: x.alias })));
 $('#faseBtns').innerHTML = FASES.map(f => `<button class="btn-soft text-sm py-3" data-addfarm="${f.k}">+ ${f.ic} ${f.l}</button>`).join('');
 $('#faseBtns').addEventListener('click', e => {
   const b = e.target.closest('[data-addfarm]'); if (!b) return;
@@ -915,7 +905,7 @@ function renderFarmacos() {
       const c = calcDose(d, f.paciente.peso);
       return `<div class="rounded-xl border border-slate-200 bg-slate-50 p-3" data-farm="${d.id}">
         <div class="grid grid-cols-6 gap-2">
-          <div class="col-span-6 sm:col-span-3"><label class="lbl">Fármaco</label><input class="inp" data-fk="nome" list="dlFarmacos" value="${esc(d.nome)}"></div>
+          <div class="col-span-6 sm:col-span-3"><label class="lbl">Fármaco</label><input class="inp" data-fk="nome" data-ac="farmacos" autocomplete="off" value="${esc(d.nome)}"></div>
           <div class="col-span-3 sm:col-span-1"><label class="lbl">Dose</label><input class="inp font-bold" data-fk="dose" type="number" inputmode="decimal" step="any" value="${esc(d.dose)}"></div>
           <div class="col-span-3 sm:col-span-2"><label class="lbl">Unidade</label><select class="inp" data-fk="unidade">${opt(UNIDADES, d.unidade)}</select></div>
           <div class="col-span-3 sm:col-span-2"><label class="lbl">Via</label><select class="inp" data-fk="via">${opt(VIAS, d.via)}</select></div>

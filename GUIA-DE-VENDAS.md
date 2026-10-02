@@ -54,15 +54,56 @@ No repositório: **Settings → Secrets and variables → Actions → aba Variab
 
 > São **Variables**, não *Secrets*: nenhum desses valores é secreto (a chave Pix é para ser compartilhada mesmo).
 
-## Passo 4 – Publicar a versão web (link para iPhone, computador e "esqueci minha senha")
+## Passo 4 – Publicar na sua VPS com domínio próprio (recomendado)
 
-1. **Settings → Pages** → em **Source**, escolha **GitHub Actions**.
-2. **Actions → Web (GitHub Pages) → Run workflow**.
-3. Em 1 a 2 minutos o app estará em **https://augustogabriel75-pixel.github.io/App-Anestesia/**. No iPhone: abra no Safari → Compartilhar → **Adicionar à Tela de Início**.
+Assim o cliente acessa algo como **https://app.vetanest.com.br**, com HTTPS, e baixa o app Android do seu próprio site (**https://app.vetanest.com.br/download/VetAnest.apk**). A cada alteração no código, o GitHub publica sozinho na VPS.
+
+> Os scripts são para **Ubuntu/Debian**. Troque `app.seudominio.com.br` pelo seu domínio em todos os passos.
+
+1. **DNS:** no painel onde você registrou o domínio (Registro.br, Hostinger, Cloudflare…), crie um registro **A** com nome `app` apontando para o **IP da VPS**. Espere alguns minutos.
+2. **Chave de publicação:** no seu computador (Windows: PowerShell), gere uma chave só para o GitHub publicar:
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C github-deploy -f deploy_vetanest
+   ```
+   Isso cria `deploy_vetanest` (chave **privada**, vai para o GitHub) e `deploy_vetanest.pub` (pública, vai para a VPS).
+3. **Preparar a VPS** (uma vez), entrando nela por SSH como root:
+   ```bash
+   git clone https://github.com/augustogabriel75-pixel/App-Anestesia.git /opt/vetanest
+   sudo bash /opt/vetanest/deploy/setup-vps.sh app.seudominio.com.br seu@email.com "COLE AQUI O CONTEÚDO DE deploy_vetanest.pub"
+   ```
+   O script instala nginx e o certificado HTTPS gratuito (Let's Encrypt) e cria o usuário `deploy`, que só pode publicar o site.
+   > Faça este passo **antes** de deixar o repositório privado (depois disso o `git clone` pede login). Se já estiver privado, copie a pasta `deploy/` para a VPS (ex.: pelo WinSCP) e rode o mesmo comando a partir dela.
+4. **Chave fixa do app Android** (uma vez, na VPS): sem ela cada APK sai com uma assinatura diferente e o celular do cliente **recusa a atualização**.
+   ```bash
+   cd ~ && bash /opt/vetanest/deploy/gerar-keystore.sh
+   ```
+   Guarde o arquivo `vetanest-release.keystore` e a senha mostrada (faça uma cópia fora da VPS). O script mostra os 4 *Secrets* a criar no próximo item.
+5. **Secrets no GitHub:** **Settings → Secrets and variables → Actions → aba Secrets → New repository secret**:
+
+   | Nome | Valor |
+   |---|---|
+   | `VPS_HOST` | IP da VPS (ou o domínio) |
+   | `VPS_USER` | `deploy` |
+   | `VPS_SSH_KEY` | conteúdo inteiro do arquivo `deploy_vetanest` (chave privada) |
+   | `VPS_PORT` | só se o SSH não for na porta 22 |
+   | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | os valores mostrados pelo `gerar-keystore.sh` |
+
+6. **Variável do endereço:** na aba **Variables**, crie `SITE_URL` = `https://app.seudominio.com.br/` (com a barra no final).
+7. **Supabase:** em **Authentication → URL Configuration**, troque o **Site URL** e o **Redirect URL** para `https://app.seudominio.com.br/`.
+8. **Publicar:** **Actions → Web (site) → Run workflow** e **Actions → Android APK → Run workflow**. Em ~4 minutos o site e o APK estão no ar. Na tela de login da versão web aparece o botão **📱 Baixar o app para Android**.
+
+> **Deixe o repositório privado** (*Settings → General → Danger Zone → Change visibility*): assim ninguém copia o código do seu produto. Tudo acima continua funcionando no plano gratuito do GitHub (o GitHub Pages é que deixa de funcionar em repositório privado gratuito, mas com a VPS você não precisa dele).
+
+### Alternativa sem VPS: GitHub Pages
+
+1. **Settings → Pages** → em **Source**, escolha **GitHub Actions** (só funciona com o repositório público no plano gratuito).
+2. **Actions → Web (site) → Run workflow**. O app fica em **https://augustogabriel75-pixel.github.io/App-Anestesia/**, e o APK continua na aba **Releases**.
+
+No iPhone (qualquer das opções): abra o site no Safari → Compartilhar → **Adicionar à Tela de Início**.
 
 ## Passo 5 – Gerar o APK de produção
 
-**Actions → Android APK → Run workflow** (ou qualquer alteração no código). Em ~3 minutos o novo `VetAnest.apk` aparece em **Releases**, já ligado ao seu banco e à sua chave Pix. Na descrição da versão deve aparecer **"Modo: nuvem (Supabase)"**.
+**Actions → Android APK → Run workflow** (ou qualquer alteração no código). Em ~3 minutos o novo APK está em **Releases** e, se a VPS estiver configurada, também em `https://SEU_DOMINIO/download/VetAnest.apk`, já ligado ao seu banco e à sua chave Pix. Na descrição da versão deve aparecer **"Modo: nuvem (Supabase)"**. Com a chave fixa (Passo 4, item 4), o cliente atualiza instalando o novo APK por cima, sem perder nada.
 
 ## Passo 6 – Virar administrador
 
@@ -72,6 +113,10 @@ No repositório: **Settings → Secrets and variables → Actions → aba Variab
    update public.profiles set is_admin = true where email = 'seu@email.com';
    ```
 3. No app, toque em **↻ Sincronizar** (Perfil). Aparece o cartão **💰 Administração – pagamentos Pix**.
+
+## Passo 6b – Teste de segurança do banco (RLS)
+
+No Supabase → **SQL Editor → New query**, cole o arquivo [`supabase/tests/rls_audit.sql`](supabase/tests/rls_audit.sql) e clique em **Run**. Ele cria 3 usuários de teste temporários, tenta 65 acessos indevidos e operações legítimas (ler fichas de outro cliente, virar admin, se dar assinatura, mudar preço, aprovar o próprio Pix…) e apaga tudo no final. Deve terminar com **"✅ OK – 66 de 66 verificações aprovadas"**. Rode de novo sempre que alterar o banco.
 
 ## Passo 7 – Testar uma venda de verdade (R$ 1,00)
 

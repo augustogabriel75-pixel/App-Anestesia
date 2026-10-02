@@ -23,6 +23,7 @@ jobs:
       VA_PAGAMENTO: ${{ vars.PAGAMENTO }}
       VA_SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_VPS: ${{ secrets.VPS_HOST != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -80,6 +81,18 @@ jobs:
           find android/app/build/outputs -name "*release*.apk" -exec cp {} "$GITHUB_WORKSPACE/VetAnest-release.apk" \;
           rm -f "$RUNNER_TEMP/release.keystore"
           ls -la "$GITHUB_WORKSPACE"/VetAnest*
+
+      - name: Publicar APK na VPS (https://SEU_DOMINIO/download/VetAnest.apk)
+        if: env.HAS_VPS == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          if [ -f VetAnest-release.apk ]; then APK=VetAnest-release.apk; else APK=VetAnest.apk; echo "::warning::Sem keystore: publicando APK de teste (debug). Clientes precisarão reinstalar a cada versão – veja deploy/gerar-keystore.sh"; fi
+          bash deploy/publicar.sh apk "$APK"
 
       - uses: actions/upload-artifact@v4
         with:

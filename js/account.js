@@ -435,6 +435,7 @@ function onAuthLost(msg) {
 
 /* --------------------------- Botão Voltar --------------------------- */
 function handleBack() {
+  if (Autocomplete.isOpen()) { Autocomplete.hide(); return; }
   const open = $$('.overlay:not(.hidden)');
   if (open.length) { closeModal(open[open.length - 1]); return; }
   if (view === 'auth') return askExit();
@@ -471,6 +472,12 @@ async function boot() {
   window.addEventListener('hashchange', () => linkDeEmail());   // link aberto com o app já carregado
   if (await linkDeEmail()) { /* tela de nova senha */ }
   else if (s && s.user) await enterApp(s.user); else showAuth();
+  // Versão web: mostra "Baixar o app para Android" se o APK estiver publicado neste servidor (VPS).
+  if (!isNative() && location.protocol.startsWith('http')) {
+    fetch('download/VetAnest.apk', { method: 'HEAD', cache: 'no-store' })
+      .then(r => { if (r.ok && /android/.test(r.headers.get('content-type') || '')) $$('.apk-link').forEach(a => a.classList.remove('hidden')); })
+      .catch(() => {});
+  }
   if ('serviceWorker' in navigator && location.protocol !== 'file:' && !isNative()) navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 boot();

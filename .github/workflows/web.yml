@@ -1,7 +1,8 @@
-name: Web (GitHub Pages)
+name: Web (site)
 
-# Publica a versão web/PWA em https://<usuário>.github.io/<repositório>/
-# Pré-requisito (uma vez): Settings → Pages → Source: "GitHub Actions".
+# Publica a versão web/PWA:
+#  - na sua VPS (domínio próprio), se os secrets VPS_* existirem;
+#  - no GitHub Pages, se estiver ativado (Settings → Pages → Source: "GitHub Actions").
 on:
   push:
     paths-ignore: ['README.md', 'GUIA-DE-VENDAS.md', 'supabase/**']
@@ -31,6 +32,7 @@ jobs:
       VA_PIX_CIDADE: ${{ vars.PIX_CIDADE }}
       VA_PAGAMENTO: ${{ vars.PAGAMENTO }}
       VA_SITE_URL: ${{ vars.SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+      HAS_VPS: ${{ secrets.VPS_HOST != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,13 +42,24 @@ jobs:
       - run: npm ci
       - run: npm run build:www
 
+      # Sua VPS (domínio próprio). Secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY (+ VPS_PORT, VPS_KNOWN_HOSTS opcionais)
+      - name: Publicar na VPS
+        if: env.HAS_VPS == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: bash deploy/publicar.sh site www
+
       - name: Verificar se o GitHub Pages está ativado
         id: pages
         continue-on-error: true
         uses: actions/configure-pages@v5
 
       - name: Aviso
-        if: steps.pages.outcome != 'success'
+        if: steps.pages.outcome != 'success' && env.HAS_VPS != 'true'
         run: |
           echo "::warning::GitHub Pages não está ativado. Ative em Settings → Pages → Source = GitHub Actions e rode este workflow de novo."
 

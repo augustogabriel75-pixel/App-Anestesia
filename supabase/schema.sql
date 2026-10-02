@@ -259,3 +259,28 @@ end $$;
 
 revoke execute on function public.admin_listar_pix(text), public.admin_aprovar_pix(uuid), public.admin_recusar_pix(uuid) from public, anon;
 grant  execute on function public.admin_listar_pix(text), public.admin_aprovar_pix(uuid), public.admin_recusar_pix(uuid) to authenticated;
+
+-- =====================================================================
+-- ENDURECIMENTO (hardening)
+-- =====================================================================
+-- Limites de tamanho: impede que alguém encha o banco com registros gigantes.
+-- (ficha completa com centenas de registros ≈ 100–300 KB; logotipo+assinatura < 1 MB)
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'fichas_data_tamanho') then
+    alter table public.fichas add constraint fichas_data_tamanho check (pg_column_size(data) < 5 * 1024 * 1024);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'profiles_settings_tamanho') then
+    alter table public.profiles add constraint profiles_settings_tamanho check (pg_column_size(settings) < 2 * 1024 * 1024);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'fichas_id_tamanho') then
+    alter table public.fichas add constraint fichas_id_tamanho check (length(id) between 1 and 64);
+  end if;
+end $$;
+
+-- search_path fixo em todas as funções (recomendação do linter do Supabase).
+alter function public.fichas_before_write() set search_path = public;
+alter function public.touch_updated_at() set search_path = public;
+
+-- Funções de gatilho não podem ser chamadas diretamente pela API.
+revoke execute on function public.handle_new_user(), public.fichas_before_write(), public.touch_updated_at(),
+  public.pix_requests_before_insert() from public, anon, authenticated;

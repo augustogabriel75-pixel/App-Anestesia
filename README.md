@@ -11,7 +11,7 @@ Após o primeiro acesso online, o service worker guarda o app e as bibliotecas e
 
 ## App Android (APK)
 
-A cada push, o workflow **Android APK** (GitHub Actions) empacota o app com [Capacitor](https://capacitorjs.com) e publica o `VetAnest.apk` na aba **Releases** do repositório. No APK, o Tailwind (CSS compilado) e o jsPDF vão embutidos, então o app funciona **100% offline** desde a primeira abertura. O PDF e o backup são salvos pela tela de compartilhamento do Android (salvar no Drive/Arquivos, WhatsApp, e-mail…).
+A cada push, o workflow **Android APK** (GitHub Actions) empacota o app com [Capacitor](https://capacitorjs.com) e publica o `VetAnest.apk` na aba **Releases** do repositório. No APK, o Tailwind (CSS compilado) e o jsPDF vão embutidos, então o app funciona **100% offline** desde a primeira abertura. O PDF é salvo pela tela de compartilhamento do Android (salvar no Drive/Arquivos, WhatsApp, e-mail…).
 
 Para instalar, baixe o `VetAnest.apk` no celular, abra o arquivo e autorize "instalar apps desconhecidos". O APK é de teste (debug). Com a keystore configurada (veja abaixo), o workflow também gera o **`VetAnest-release.aab` assinado** para a Play Store.
 
@@ -70,7 +70,7 @@ Para o Pix manual basta o [GUIA-DE-VENDAS.md](GUIA-DE-VENDAS.md). Os passos abai
 | Tela | O que faz |
 |---|---|
 | **Perfil** (ícone 👤) | Conta e assinatura (status do plano, assinar/renovar, sincronizar, sair). Nome do anestesista, CRMV/UF, clínica padrão, contato, **logotipo** (upload) e **assinatura** (upload ou desenhada na tela), salvos na conta e disponíveis em todos os aparelhos. |
-| **Fichas** | Lista, busca, abertura e exclusão de fichas; backup e restauração em JSON. |
+| **Fichas** | Lista, busca, abertura e exclusão de fichas (cópia de segurança automática na nuvem da conta). |
 | **Paciente** | Clínica (editável por paciente), tutor (nome, telefone/WhatsApp com máscara, CPF opcional), paciente (espécie, raça, idade, sexo, castração, peso), procedimento, data, cirurgião, ASA I–V (+E), risco anestésico, jejum sólido/líquido, avaliação pré-anestésica. |
 | **Fármacos** | MPA, indução, manutenção, analgesia/bloqueios e resgates: fármaco, dose (mg/kg, mcg/kg, mcg/kg/min, mg/kg/h…), via e horário. **Cálculo automático** da dose total e do volume (mL) a partir do peso e da concentração (concentrações usuais são sugeridas). Fluidoterapia (tipo e taxa em mL/kg/h e mL/h). |
 | **Monitor** | Cronômetro da anestesia, intervalo de registro de 5/10/15 min com **alarme sonoro e vibratório**, tela sempre acesa (nativo no Android, Wake Lock no navegador). Registro de FC, FR, PAS/PAD/PAM (PAM calculada automaticamente), SpO₂, EtCO₂, temperatura, glicemia, plano de Guedel, reflexos palpebral e corneano, globo ocular, agente e % do vaporizador, FiO₂, modo ventilatório, VC, PEEP, pressão de pico e observações. Eventos com um toque (intubação, incisão, bolus, hipotensão, extubação…). Últimos valores, gráfico de tendência e tabela editável. Valores fora da faixa aproximada da espécie aparecem em vermelho. |
@@ -97,12 +97,14 @@ Anestesias curtas cabem em uma página; as mais longas ocupam duas ou mais pági
 - `js/account.js`: login/cadastro, plano freemium, checkout, administração de pagamentos, botão Voltar e inicialização.
 - `js/pix.js` + `js/vendor/qrcode.js`: geração do Pix (BR Code com CRC16) e do QR Code, sem API.
 - `js/native.js`: integração com o Android (voltar, tela acesa, navegador externo) e alternativas para o navegador.
-- `supabase/`: schema SQL com RLS e Edge Functions (`create-checkout`, `payment-webhook`) para o Mercado Pago.
+- `supabase/`: schema SQL com RLS, auditoria de segurança (`supabase/tests/rls_audit.sql`) e Edge Functions (`create-checkout`, `payment-webhook`) para o Mercado Pago.
+- `js/catalogos.js` + `js/autocomplete.js`: raças por espécie (cães, gatos, equinos), fluidos (nome completo + sigla), fármacos e procedimentos, com busca sem acentos.
+- `deploy/`: publicação na sua VPS (nginx + HTTPS, `setup-vps.sh`, `publicar.sh`) e geração da chave de assinatura do Android (`gerar-keystore.sh`).
 - [Tailwind CSS](https://tailwindcss.com) (Play CDN na web, CSS compilado no APK), [jsPDF](https://github.com/parallax/jsPDF) e [jsPDF-AutoTable](https://github.com/simonbengtsson/jsPDF-AutoTable).
 - `manifest.webmanifest` e `sw.js` para a instalação como PWA e o uso offline; [Capacitor](https://capacitorjs.com) para o Android.
 - Workflows: **Android APK** (APK/AAB em Releases) e **Web (GitHub Pages)** (versão web publicada a cada alteração).
 
 ## Avisos
 
-- No modo demonstração os dados ficam só no aparelho. Com o servidor configurado, ficam também na nuvem da conta. O backup em JSON (Fichas → Backup) continua disponível.
+- No modo demonstração os dados ficam só no aparelho. Com o servidor configurado, ficam também na nuvem da conta.
 - Os cálculos de dose, as concentrações sugeridas e as faixas de referência são auxílios. **Sempre confira** antes de administrar qualquer fármaco. A responsabilidade clínica é do médico veterinário.
